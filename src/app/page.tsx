@@ -295,15 +295,16 @@ export default function Home() {
       <section className="mt-8">
         <h2 className="text-lg font-medium">结果</h2>
 
-        <div className="mt-3 grid gap-3">
-          {items.length === 0 ? (
-            <div className="text-sm text-gray-600">暂无结果。输入关键词后点击“搜索”。</div>
-          ) : null}
+        {items.length === 0 ? (
+          <div className="mt-3 text-sm text-gray-600">暂无结果（当前仅显示 Made for Kids 的内容）。</div>
+        ) : null}
 
+        {/* YouTube Kids-like big cards */}
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {items.map((it) => (
             <button
               key={it.id}
-              className="text-left border rounded p-3 hover:bg-gray-50"
+              className="text-left rounded-2xl overflow-hidden border bg-white hover:shadow-sm active:scale-[0.99] transition"
               onClick={() => {
                 if (type === 'video') {
                   setSelectedVideoId(it.id);
@@ -313,28 +314,40 @@ export default function Home() {
                   window.open(`https://www.youtube.com/channel/${it.id}`, '_blank');
                   return;
                 }
-                // playlist
                 window.open(`https://www.youtube.com/playlist?list=${it.id}`, '_blank');
               }}
             >
-              <div className="flex gap-3">
+              <div className="aspect-video bg-gray-100">
                 {it.thumbnailUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={it.thumbnailUrl}
                     alt={it.title || 'thumbnail'}
-                    className="w-28 h-16 sm:w-32 sm:h-20 object-cover rounded bg-gray-100"
+                    className="w-full h-full object-cover"
                   />
-                ) : (
-                  <div className="w-28 h-16 sm:w-32 sm:h-20 rounded bg-gray-100" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium line-clamp-2">{it.title}</div>
-                  <div className="text-sm text-gray-600 mt-1">
-                    {it.channelTitle}
-                    {'durationText' in it && it.durationText ? ` · ${it.durationText}` : ''}
-                    {'defaultLanguage' in it && it.defaultLanguage ? ` · ${it.defaultLanguage}` : ''}
-                  </div>
+                ) : null}
+              </div>
+
+              <div className="p-3">
+                <div className="font-semibold text-sm leading-snug line-clamp-2">
+                  {it.title || '(no title)'}
+                </div>
+                <div className="text-xs text-gray-600 mt-1 line-clamp-2">
+                  {it.channelTitle || ''}
+                </div>
+
+                <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                  {'durationText' in it && it.durationText ? (
+                    <span className="px-2 py-0.5 rounded-full bg-gray-100">{it.durationText}</span>
+                  ) : null}
+                  {'defaultLanguage' in it && it.defaultLanguage ? (
+                    <span className="px-2 py-0.5 rounded-full bg-gray-100">{it.defaultLanguage}</span>
+                  ) : null}
+                  {'madeForKids' in it && it.madeForKids ? (
+                    <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-800">
+                      Kids
+                    </span>
+                  ) : null}
                 </div>
               </div>
             </button>

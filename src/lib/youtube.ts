@@ -23,6 +23,7 @@ export type VideoListItem = {
   durationSec?: number;
   durationText?: string;
   defaultLanguage?: string;
+  madeForKids?: boolean;
 };
 
 function mustGetEnv(name: string): string {
@@ -70,6 +71,9 @@ type YTVideoItem = {
   };
   contentDetails?: {
     duration?: string;
+  };
+  status?: {
+    madeForKids?: boolean;
   };
 };
 
@@ -187,7 +191,7 @@ export async function getMostPopularVideos(params: {
   const { regionCode, maxResults = 24, videoCategoryId } = params;
 
   const json = (await ytFetch('videos', {
-    part: 'snippet,contentDetails',
+    part: 'snippet,contentDetails,status',
     chart: 'mostPopular',
     regionCode,
     maxResults,
@@ -209,6 +213,7 @@ export async function getMostPopularVideos(params: {
         publishedAt: it.snippet?.publishedAt,
         thumbnailUrl: it.snippet?.thumbnails?.medium?.url || it.snippet?.thumbnails?.default?.url,
         defaultLanguage: it.snippet?.defaultLanguage,
+        madeForKids: it.status?.madeForKids,
         durationSec,
         durationText: durationSec !== undefined ? formatDuration(durationSec) : undefined,
       };
@@ -221,7 +226,7 @@ export async function getVideosDetails(videoIds: string[]): Promise<VideoListIte
   if (ids.length === 0) return [];
 
   const json = (await ytFetch('videos', {
-    part: 'snippet,contentDetails',
+    part: 'snippet,contentDetails,status',
     id: ids.join(','),
     maxResults: 50,
   })) as YTVideosResponse;
@@ -241,6 +246,7 @@ export async function getVideosDetails(videoIds: string[]): Promise<VideoListIte
         publishedAt: it.snippet?.publishedAt,
         thumbnailUrl: it.snippet?.thumbnails?.medium?.url || it.snippet?.thumbnails?.default?.url,
         defaultLanguage: it.snippet?.defaultLanguage,
+        madeForKids: it.status?.madeForKids,
         durationSec,
         durationText: durationSec !== undefined ? formatDuration(durationSec) : undefined,
       };

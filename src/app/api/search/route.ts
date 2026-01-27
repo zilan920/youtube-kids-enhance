@@ -44,6 +44,8 @@ export async function GET(req: Request) {
       const details = await getVideosDetails(ids);
 
       const filtered = details.filter((v) => {
+        // enforce kids-only
+        if (v.madeForKids !== true) return false;
         if (v.durationSec === undefined) return false;
         if (minSec !== undefined && v.durationSec < minSec) return false;
         if (maxSec !== undefined && v.durationSec > maxSec) return false;
