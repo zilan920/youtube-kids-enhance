@@ -1,0 +1,209 @@
+import { parse, toSeconds } from 'iso8601-duration';
+
+const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
+
+export type YoutubeSearchType = 'video' | 'playlist' | 'channel';
+export type YoutubeDurationPreset = 'any' | 'short' | 'medium' | 'long';
+
+export type SearchListItem = {
+  id: string;
+  kind?: string;
+  title?: string;
+  channelTitle?: string;
+  publishedAt?: string;
+  thumbnailUrl?: string;
+};
+
+export type VideoListItem = {
+  id: string;
+  title: string;
+  channelTitle: string;
+  publishedAt?: string;
+  thumbnailUrl?: string;
+  durationSec?: number;
+  durationText?: string;
+  defaultLanguage?: string;
+};
+
+function mustGetEnv(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing env var: ${name}`);
+  return v;
+}
+
+export function isoDurationToSeconds(iso: string): number {
+  // YouTube returns ISO 8601 durations, e.g. PT4M13S
+  return toSeconds(parse(iso));
+}
+
+export function formatDuration(sec: number): string {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+type YTThumbnail = { url?: string };
+
+type YTSearchItem = {
+  id?: { videoId?: string; playlistId?: string; channelId?: string; kind?: string };
+  snippet?: {
+    title?: string;
+    channelTitle?: string;
+    publishedAt?: string;
+    thumbnails?: { medium?: YTThumbnail; default?: YTThumbnail };
+  };
+};
+
+type YTSearchResponse = { items?: YTSearchItem[] };
+
+type YTVideoItem = {
+  id?: string;
+  snippet?: {
+    title?: string;
+    channelTitle?: string;
+    publishedAt?: string;
+    defaultLanguage?: string;
+    thumbnails?: { medium?: YTThumbnail; default?: YTThumbnail };
+  };
+  contentDetails?: {
+    duration?: string;
+  };
+};
+
+type YTVideosResponse = { items?: YTVideoItem[] };
+
+async function ytFetch(path: string, params: Record<string, string | number | undefined>): Promise<unknown> {
+  const key = mustGetEnv('YOUTUBE_API_KEY');
+  const url = new URL(`${YOUTUBE_API_BASE}/${path}`);
+  url.searchParams.set('key', key);
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === '') continue;
+    url.searchParams.set(k, String(v));
+  }
+
+  const res = await fetch(url.toString(), {
+    // avoid caching stale results in dev/prod
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`YouTube API error (${res.status}): ${text}`);
+  }
+  return res.json();
+}
+
+export async function search(params: {
+  q: string;
+  type: YoutubeSearchType;
+  durationPreset?: YoutubeDurationPreset;
+  relevanceLanguage?: string;
+  regionCode?: string;
+  maxResults?: number;
+}): Promise<SearchListItem[]> {
+  const {
+    q,
+    type,
+    durationPreset = 'any',
+    relevanceLanguage,
+    regionCode,
+    maxResults = 20,
+  } = params;
+
+  const safeSearch = 'strict';
+
+  const json = (await ytFetch('search', {
+    part: 'snippet',
+    q,
+    type,
+    maxResults,
+    safeSearch,
+    relevanceLanguage,
+    regionCode,
+    // for kids-ish content, we bias to videos with captions/education would be better later
+  })) as YTSearchResponse;
+
+  const items = json.items ?? [];
+  const mapped = items
+    .map((it) => {
+      const id = it.id?.videoId || it.id?.playlistId || it.id?.channelId;
+      if (!id) return null;
+      return {
+        id,
+        kind: it.id?.kind,
+        title: it.snippet?.title,
+        channelTitle: it.snippet?.channelTitle,
+        publishedAt: it.snippet?.publishedAt,
+        thumbnailUrl: it.snippet?.thumbnails?.medium?.url || it.snippet?.thumbnails?.default?.url,
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => Boolean(x));
+
+  // YouTube only allows duration filter for video type.
+  // We apply preset at the API level when possible.
+  if (type === 'video' && durationPreset !== 'any') {
+    // re-run with videoDuration included (cheaper than filtering locally)
+    const json2 = (await ytFetch('search', {
+      part: 'snippet',
+      q,
+      type,
+      maxResults,
+      safeSearch,
+      relevanceLanguage,
+      regionCode,
+      videoDuration: durationPreset,
+    })) as YTSearchResponse;
+
+    const items2 = json2.items ?? [];
+    return items2
+      .map((it) => {
+        const id = it.id?.videoId;
+        if (!id) return null;
+        return {
+          id,
+          title: it.snippet?.title ?? '',
+          channelTitle: it.snippet?.channelTitle ?? '',
+          publishedAt: it.snippet?.publishedAt,
+          thumbnailUrl: it.snippet?.thumbnails?.medium?.url || it.snippet?.thumbnails?.default?.url,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => Boolean(x));
+  }
+
+  return mapped;
+}
+
+export async function getVideosDetails(videoIds: string[]): Promise<VideoListItem[]> {
+  const ids = videoIds.filter(Boolean);
+  if (ids.length === 0) return [];
+
+  const json = (await ytFetch('videos', {
+    part: 'snippet,contentDetails',
+    id: ids.join(','),
+    maxResults: 50,
+  })) as YTVideosResponse;
+
+  const items = json.items ?? [];
+
+  return items
+    .map((it) => {
+      const id = it.id;
+      if (!id) return null;
+      const durationIso = it.contentDetails?.duration;
+      const durationSec = durationIso ? isoDurationToSeconds(durationIso) : undefined;
+      return {
+        id,
+        title: it.snippet?.title ?? '',
+        channelTitle: it.snippet?.channelTitle ?? '',
+        publishedAt: it.snippet?.publishedAt,
+        thumbnailUrl: it.snippet?.thumbnails?.medium?.url || it.snippet?.thumbnails?.default?.url,
+        defaultLanguage: it.snippet?.defaultLanguage,
+        durationSec,
+        durationText: durationSec !== undefined ? formatDuration(durationSec) : undefined,
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => Boolean(x));
+}
