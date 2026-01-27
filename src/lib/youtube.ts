@@ -75,6 +75,9 @@ type YTVideoItem = {
 
 type YTVideosResponse = { items?: YTVideoItem[] };
 
+type YTMostPopularResponse = { items?: YTVideoItem[] };
+
+
 async function ytFetch(path: string, params: Record<string, string | number | undefined>): Promise<unknown> {
   const key = mustGetEnv('YOUTUBE_API_KEY');
   const url = new URL(`${YOUTUBE_API_BASE}/${path}`);
@@ -174,6 +177,43 @@ export async function search(params: {
   }
 
   return mapped;
+}
+
+export async function getMostPopularVideos(params: {
+  regionCode: string;
+  maxResults?: number;
+  videoCategoryId?: string;
+}): Promise<VideoListItem[]> {
+  const { regionCode, maxResults = 24, videoCategoryId } = params;
+
+  const json = (await ytFetch('videos', {
+    part: 'snippet,contentDetails',
+    chart: 'mostPopular',
+    regionCode,
+    maxResults,
+    videoCategoryId,
+  })) as YTMostPopularResponse;
+
+  const items = json.items ?? [];
+
+  return items
+    .map((it) => {
+      const id = it.id;
+      if (!id) return null;
+      const durationIso = it.contentDetails?.duration;
+      const durationSec = durationIso ? isoDurationToSeconds(durationIso) : undefined;
+      return {
+        id,
+        title: it.snippet?.title ?? '',
+        channelTitle: it.snippet?.channelTitle ?? '',
+        publishedAt: it.snippet?.publishedAt,
+        thumbnailUrl: it.snippet?.thumbnails?.medium?.url || it.snippet?.thumbnails?.default?.url,
+        defaultLanguage: it.snippet?.defaultLanguage,
+        durationSec,
+        durationText: durationSec !== undefined ? formatDuration(durationSec) : undefined,
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => Boolean(x));
 }
 
 export async function getVideosDetails(videoIds: string[]): Promise<VideoListItem[]> {

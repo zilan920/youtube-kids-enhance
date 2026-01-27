@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 type SearchType = 'video' | 'playlist' | 'channel';
 type DurationPreset = 'any' | 'short' | 'medium' | 'long';
@@ -35,7 +35,51 @@ export default function Home() {
   const [items, setItems] = useState<Item[]>([]);
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
 
+  const [filtersDirty, setFiltersDirty] = useState(false);
+
   const canRangeFilter = type === 'video';
+
+  const STORAGE_KEY = 'youtube-kids-enhance.filters.v1';
+
+  useEffect(() => {
+    // restore last filter selections (but don't auto-apply)
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const s = JSON.parse(raw) as Partial<{
+          type: SearchType;
+          durationPreset: DurationPreset;
+          lang: string;
+          minSec: string;
+          maxSec: string;
+        }>;
+        if (s.type) setType(s.type);
+        if (s.durationPreset) setDurationPreset(s.durationPreset);
+        if (typeof s.lang === 'string') setLang(s.lang);
+        if (typeof s.minSec === 'string') setMinSec(s.minSec);
+        if (typeof s.maxSec === 'string') setMaxSec(s.maxSec);
+      }
+    } catch {
+      // ignore
+    }
+
+    // default load: show a "kids-like" feed first (unfiltered)
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch('/api/feed');
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || 'Feed failed');
+        setItems(json.items || []);
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : 'Unknown error';
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   const apiUrl = useMemo(() => {
     const sp = new URLSearchParams();
@@ -49,6 +93,9 @@ export default function Home() {
   }, [q, type, durationPreset, lang, minSec, maxSec, canRangeFilter]);
 
   async function runSearch() {
+    // "Search" button: explicit action. If q is empty, keep showing the default feed.
+    if (!q.trim()) return;
+
     setLoading(true);
     setError(null);
     setSelectedVideoId(null);
@@ -57,6 +104,46 @@ export default function Home() {
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || 'Search failed');
       setItems(json.items || []);
+      setFiltersDirty(false);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Unknown error';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function applyFilters() {
+    // persist selections
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ type, durationPreset, lang, minSec, maxSec })
+      );
+    } catch {
+      // ignore
+    }
+
+    // Apply only when user clicks. If no query, we still apply filters by running a default kid query.
+    const effectiveQ = q.trim() || 'kids';
+
+    setLoading(true);
+    setError(null);
+    setSelectedVideoId(null);
+    try {
+      const sp = new URLSearchParams();
+      sp.set('q', effectiveQ);
+      sp.set('type', type);
+      sp.set('durationPreset', durationPreset);
+      if (lang.trim()) sp.set('lang', lang.trim());
+      if (canRangeFilter && minSec.trim()) sp.set('minSec', minSec.trim());
+      if (canRangeFilter && maxSec.trim()) sp.set('maxSec', maxSec.trim());
+
+      const res = await fetch(`/api/search?${sp.toString()}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Apply filters failed');
+      setItems(json.items || []);
+      setFiltersDirty(false);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Unknown error';
       setError(message);
@@ -98,7 +185,10 @@ export default function Home() {
             <select
               className="border rounded px-3 py-2"
               value={type}
-              onChange={(e) => setType(e.target.value as SearchType)}
+              onChange={(e) => {
+                setType(e.target.value as SearchType);
+                setFiltersDirty(true);
+              }}
             >
               <option value="video">video</option>
               <option value="playlist">playlist</option>
@@ -111,7 +201,10 @@ export default function Home() {
             <select
               className="border rounded px-3 py-2"
               value={durationPreset}
-              onChange={(e) => setDurationPreset(e.target.value as DurationPreset)}
+              onChange={(e) => {
+                setDurationPreset(e.target.value as DurationPreset);
+                setFiltersDirty(true);
+              }}
               disabled={type !== 'video'}
               title={type !== 'video' ? '仅 video 支持时长过滤' : undefined}
             >
@@ -127,7 +220,10 @@ export default function Home() {
             <input
               className="border rounded px-3 py-2"
               value={lang}
-              onChange={(e) => setLang(e.target.value)}
+              onChange={(e) => {
+                setLang(e.target.value);
+                setFiltersDirty(true);
+              }}
               placeholder="例如 en, zh, ms"
             />
           </label>
@@ -139,7 +235,10 @@ export default function Home() {
             <input
               className="border rounded px-3 py-2"
               value={minSec}
-              onChange={(e) => setMinSec(e.target.value)}
+              onChange={(e) => {
+                setMinSec(e.target.value);
+                setFiltersDirty(true);
+              }}
               placeholder="例如 60"
               disabled={!canRangeFilter}
             />
@@ -149,11 +248,30 @@ export default function Home() {
             <input
               className="border rounded px-3 py-2"
               value={maxSec}
-              onChange={(e) => setMaxSec(e.target.value)}
+              onChange={(e) => {
+                setMaxSec(e.target.value);
+                setFiltersDirty(true);
+              }}
               placeholder="例如 600"
               disabled={!canRangeFilter}
             />
           </label>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            className="rounded bg-blue-600 text-white px-4 py-2 disabled:opacity-50"
+            onClick={applyFilters}
+            disabled={loading}
+            title="仅在点击后才会应用筛选"
+          >
+            应用筛选
+          </button>
+          {filtersDirty ? (
+            <span className="text-xs text-gray-600 self-center">
+              已更改筛选条件，点击“应用筛选”查看结果（会记住本次选择）。
+            </span>
+          ) : null}
         </div>
 
         {error ? <div className="text-sm text-red-600">{error}</div> : null}
