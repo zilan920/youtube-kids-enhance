@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type SearchType = 'video' | 'playlist' | 'channel';
 type DurationPreset = 'any' | 'short' | 'medium' | 'long';
@@ -24,11 +24,11 @@ type Item = VideoItem | BaseItem;
 
 export default function Home() {
   const [q, setQ] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+
   const [type, setType] = useState<SearchType>('video');
   const [durationPreset, setDurationPreset] = useState<DurationPreset>('any');
   const [lang, setLang] = useState('');
-  const [minSec, setMinSec] = useState<string>('');
-  const [maxSec, setMaxSec] = useState<string>('');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,9 +37,7 @@ export default function Home() {
 
   const [filtersDirty, setFiltersDirty] = useState(false);
 
-  const canRangeFilter = type === 'video';
-
-  const STORAGE_KEY = 'youtube-kids-enhance.filters.v1';
+  const STORAGE_KEY = 'youtube-kids-enhance.filters.v2';
 
   useEffect(() => {
     // restore last filter selections (but don't auto-apply)
@@ -50,14 +48,12 @@ export default function Home() {
           type: SearchType;
           durationPreset: DurationPreset;
           lang: string;
-          minSec: string;
-          maxSec: string;
+          showSearch: boolean;
         }>;
         if (s.type) setType(s.type);
         if (s.durationPreset) setDurationPreset(s.durationPreset);
         if (typeof s.lang === 'string') setLang(s.lang);
-        if (typeof s.minSec === 'string') setMinSec(s.minSec);
-        if (typeof s.maxSec === 'string') setMaxSec(s.maxSec);
+        if (typeof s.showSearch === 'boolean') setShowSearch(s.showSearch);
       }
     } catch {
       // ignore
@@ -81,44 +77,14 @@ export default function Home() {
     })();
   }, []);
 
-  const apiUrl = useMemo(() => {
-    const sp = new URLSearchParams();
-    sp.set('q', q);
-    sp.set('type', type);
-    sp.set('durationPreset', durationPreset);
-    if (lang.trim()) sp.set('lang', lang.trim());
-    if (canRangeFilter && minSec.trim()) sp.set('minSec', minSec.trim());
-    if (canRangeFilter && maxSec.trim()) sp.set('maxSec', maxSec.trim());
-    return `/api/search?${sp.toString()}`;
-  }, [q, type, durationPreset, lang, minSec, maxSec, canRangeFilter]);
-
-  async function runSearch() {
-    // "Search" button: explicit action. If q is empty, keep showing the default feed.
-    if (!q.trim()) return;
-
-    setLoading(true);
-    setError(null);
-    setSelectedVideoId(null);
-    try {
-      const res = await fetch(apiUrl);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Search failed');
-      setItems(json.items || []);
-      setFiltersDirty(false);
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Unknown error';
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }
+  // Search action is intentionally unified into "applyFilters" (kids UI).
 
   async function applyFilters() {
     // persist selections
     try {
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ type, durationPreset, lang, minSec, maxSec })
+        JSON.stringify({ type, durationPreset, lang, showSearch })
       );
     } catch {
       // ignore
@@ -136,8 +102,6 @@ export default function Home() {
       sp.set('type', type);
       sp.set('durationPreset', durationPreset);
       if (lang.trim()) sp.set('lang', lang.trim());
-      if (canRangeFilter && minSec.trim()) sp.set('minSec', minSec.trim());
-      if (canRangeFilter && maxSec.trim()) sp.set('maxSec', maxSec.trim());
 
       const res = await fetch(`/api/search?${sp.toString()}`);
       const json = await res.json();
@@ -153,128 +117,121 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen p-4 sm:p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-semibold">youtube-kids-enhance</h1>
-      <p className="text-sm text-gray-600 mt-1">
-        MVP：搜索/播放 + 按播放时长、语言、类型筛选（SafeSearch=Strict）。
+    <main className="min-h-screen p-4 sm:p-6 max-w-5xl mx-auto bg-gradient-to-b from-pink-50 via-yellow-50 to-sky-50">
+      <h1 className="sr-only">youtube-kids-enhance</h1>
+      <p className="mt-2 text-sm text-gray-700">
+        只显示 <span className="font-semibold">Made for Kids</span> 内容。
       </p>
 
-      <section className="mt-6 grid gap-3">
-        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-          <input
-            className="border rounded px-3 py-2"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="搜索：例如 peppa pig, alphabet song, 数学启蒙..."
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') runSearch();
-            }}
-          />
+      <section className="mt-5 rounded-3xl bg-white/70 backdrop-blur border border-pink-100 p-4 sm:p-5 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="text-2xl">KidsTube</div>
+          <div className="flex-1" />
           <button
-            className="rounded bg-black text-white px-4 py-2 disabled:opacity-50"
-            onClick={runSearch}
-            disabled={!q.trim() || loading}
+            className="px-3 py-2 rounded-full bg-pink-100 text-pink-900 hover:bg-pink-200 transition"
+            onClick={() => {
+              const next = !showSearch;
+              setShowSearch(next);
+              setFiltersDirty(true);
+              try {
+                localStorage.setItem(
+                  STORAGE_KEY,
+                  JSON.stringify({ type, durationPreset, lang, showSearch: next })
+                );
+              } catch {
+                // ignore
+              }
+            }}
+            title="搜索"
           >
-            {loading ? '搜索中…' : '搜索'}
+            搜索
+          </button>
+          <button
+            className="px-4 py-2 rounded-full bg-indigo-500 text-white hover:bg-indigo-600 transition disabled:opacity-50"
+            onClick={applyFilters}
+            disabled={loading}
+            title="点击才应用筛选"
+          >
+            应用
           </button>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <label className="grid gap-1 text-sm">
-            <span className="text-gray-700">视频类型</span>
-            <select
-              className="border rounded px-3 py-2"
-              value={type}
-              onChange={(e) => {
-                setType(e.target.value as SearchType);
-                setFiltersDirty(true);
-              }}
-            >
-              <option value="video">video</option>
-              <option value="playlist">playlist</option>
-              <option value="channel">channel</option>
-            </select>
-          </label>
-
-          <label className="grid gap-1 text-sm">
-            <span className="text-gray-700">播放时长（预设）</span>
-            <select
-              className="border rounded px-3 py-2"
-              value={durationPreset}
-              onChange={(e) => {
-                setDurationPreset(e.target.value as DurationPreset);
-                setFiltersDirty(true);
-              }}
-              disabled={type !== 'video'}
-              title={type !== 'video' ? '仅 video 支持时长过滤' : undefined}
-            >
-              <option value="any">any</option>
-              <option value="short">short (&lt;4min)</option>
-              <option value="medium">medium (4–20min)</option>
-              <option value="long">long (&gt;20min)</option>
-            </select>
-          </label>
-
-          <label className="grid gap-1 text-sm">
-            <span className="text-gray-700">语言（relevanceLanguage / defaultLanguage）</span>
+        {showSearch ? (
+          <div className="mt-3">
             <input
-              className="border rounded px-3 py-2"
+              className="w-full border border-pink-100 rounded-2xl px-4 py-3 text-base outline-none focus:ring-4 focus:ring-pink-100"
+              value={q}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setFiltersDirty(true);
+              }}
+              placeholder="想看什么？例如 peppa pig / alphabet song / 数学启蒙"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') applyFilters();
+              }}
+            />
+          </div>
+        ) : null}
+
+        {/* Horizontal swipe filters (kids-style chips) */}
+        <div className="mt-4 flex gap-2 overflow-x-auto no-scrollbar py-1">
+          {(['video', 'playlist', 'channel'] as SearchType[]).map((t) => (
+            <button
+              key={t}
+              className={`shrink-0 px-4 py-2 rounded-full border transition ${
+                type === t
+                  ? 'bg-yellow-200 border-yellow-300 text-yellow-900'
+                  : 'bg-white border-pink-100 text-gray-700 hover:bg-pink-50'
+              }`}
+              onClick={() => {
+                setType(t);
+                setFiltersDirty(true);
+              }}
+              title="类型"
+            >
+              {t}
+            </button>
+          ))}
+
+          {(['any', 'short', 'medium', 'long'] as DurationPreset[]).map((d) => (
+            <button
+              key={d}
+              className={`shrink-0 px-4 py-2 rounded-full border transition ${
+                durationPreset === d
+                  ? 'bg-green-200 border-green-300 text-green-900'
+                  : 'bg-white border-pink-100 text-gray-700 hover:bg-pink-50'
+              } ${type !== 'video' ? 'opacity-50 pointer-events-none' : ''}`}
+              onClick={() => {
+                setDurationPreset(d);
+                setFiltersDirty(true);
+              }}
+              title={type !== 'video' ? '仅 video 支持时长过滤' : '时长'}
+            >
+              {d}
+            </button>
+          ))}
+
+          <div className="shrink-0 flex items-center gap-2 pl-1">
+            <span className="text-xs text-gray-500">Lang</span>
+            <input
+              className="w-20 sm:w-24 border border-pink-100 rounded-full px-3 py-2 text-sm outline-none focus:ring-4 focus:ring-pink-100"
               value={lang}
               onChange={(e) => {
                 setLang(e.target.value);
                 setFiltersDirty(true);
               }}
-              placeholder="例如 en, zh, ms"
+              placeholder="en/zh"
             />
-          </label>
+          </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="grid gap-1 text-sm">
-            <span className="text-gray-700">最短秒数（可选）</span>
-            <input
-              className="border rounded px-3 py-2"
-              value={minSec}
-              onChange={(e) => {
-                setMinSec(e.target.value);
-                setFiltersDirty(true);
-              }}
-              placeholder="例如 60"
-              disabled={!canRangeFilter}
-            />
-          </label>
-          <label className="grid gap-1 text-sm">
-            <span className="text-gray-700">最长秒数（可选）</span>
-            <input
-              className="border rounded px-3 py-2"
-              value={maxSec}
-              onChange={(e) => {
-                setMaxSec(e.target.value);
-                setFiltersDirty(true);
-              }}
-              placeholder="例如 600"
-              disabled={!canRangeFilter}
-            />
-          </label>
-        </div>
+        {filtersDirty ? (
+          <div className="mt-2 text-xs text-gray-600">
+            已更改条件：点右上角“应用”才会刷新结果（会记住你的选择）。
+          </div>
+        ) : null}
 
-        <div className="flex flex-wrap gap-2">
-          <button
-            className="rounded bg-blue-600 text-white px-4 py-2 disabled:opacity-50"
-            onClick={applyFilters}
-            disabled={loading}
-            title="仅在点击后才会应用筛选"
-          >
-            应用筛选
-          </button>
-          {filtersDirty ? (
-            <span className="text-xs text-gray-600 self-center">
-              已更改筛选条件，点击“应用筛选”查看结果（会记住本次选择）。
-            </span>
-          ) : null}
-        </div>
-
-        {error ? <div className="text-sm text-red-600">{error}</div> : null}
+        {error ? <div className="mt-2 text-sm text-red-600">{error}</div> : null}
       </section>
 
       {selectedVideoId ? (
