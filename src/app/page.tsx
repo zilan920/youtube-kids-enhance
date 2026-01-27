@@ -34,10 +34,19 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
+  const [playerOpen, setPlayerOpen] = useState(false);
 
   const [filtersDirty, setFiltersDirty] = useState(false);
 
   const STORAGE_KEY = 'youtube-kids-enhance.filters.v2';
+
+  useEffect(() => {
+    // lock body scroll when player overlay is open
+    document.body.style.overflow = playerOpen ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [playerOpen]);
 
   useEffect(() => {
     // restore last filter selections (but don't auto-apply)
@@ -79,6 +88,34 @@ export default function Home() {
 
   // Search action is intentionally unified into "applyFilters" (kids UI).
 
+  async function enterFullscreen() {
+    try {
+      const el = document.getElementById('player-shell');
+      if (el && 'requestFullscreen' in el) {
+        await (el as HTMLElement).requestFullscreen();
+      }
+      // Best-effort: ask device to go landscape while playing.
+      // Some browsers require fullscreen + user gesture.
+      // @ts-expect-error - screen.orientation lock is not always typed
+      if (screen?.orientation?.lock) {
+        // @ts-expect-error - orientation lock requires lib.dom types
+        await screen.orientation.lock('landscape');
+      }
+    } catch {
+      // ignore (permissions / unsupported)
+    }
+  }
+
+  async function exitFullscreen() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      const orientation = screen.orientation as unknown as { unlock?: () => void };
+      if (orientation?.unlock) orientation.unlock();
+    } catch {
+      // ignore
+    }
+  }
+
   async function applyFilters() {
     // persist selections
     try {
@@ -96,6 +133,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setSelectedVideoId(null);
+    setPlayerOpen(false);
     try {
       const sp = new URLSearchParams();
       sp.set('q', effectiveQ);
@@ -234,19 +272,43 @@ export default function Home() {
         {error ? <div className="mt-2 text-sm text-red-600">{error}</div> : null}
       </section>
 
-      {selectedVideoId ? (
-        <section className="mt-8">
-          <h2 className="text-lg font-medium">播放</h2>
-          <div className="mt-3 aspect-video w-full">
-            <iframe
-              className="w-full h-full rounded border"
-              src={`https://www.youtube-nocookie.com/embed/${selectedVideoId}`}
-              title="YouTube video player"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
+      {/* Fullscreen-like player overlay (kids-style shell) */}
+      {playerOpen && selectedVideoId ? (
+        <div className="fixed inset-0 z-50 bg-gradient-to-b from-pink-100 via-yellow-50 to-sky-100">
+          <div className="absolute inset-0 opacity-30 pointer-events-none" />
+
+          <div className="h-full w-full flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="text-sm font-semibold text-pink-900">正在播放</div>
+              <button
+                className="px-4 py-2 rounded-full bg-white/80 border border-pink-200 text-pink-900 shadow-sm"
+                onClick={() => {
+                  setPlayerOpen(false);
+                  void exitFullscreen();
+                }}
+              >
+                退出
+              </button>
+            </div>
+
+            <div className="flex-1 flex items-center justify-center px-3 pb-6">
+              <div
+                id="player-shell"
+                className="w-full max-w-5xl h-[80vh] sm:h-[82vh] rounded-[28px] bg-white/70 border border-pink-200 shadow-lg p-3"
+              >
+                <div className="w-full h-full rounded-[20px] overflow-hidden bg-black">
+                  <iframe
+                    className="w-full h-full"
+                    src={`https://www.youtube-nocookie.com/embed/${selectedVideoId}?autoplay=1&playsinline=1`}
+                    title="YouTube video player"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              </div>
+            </div>
           </div>
-        </section>
+        </div>
       ) : null}
 
       <section className="mt-8">
@@ -265,6 +327,9 @@ export default function Home() {
               onClick={() => {
                 if (type === 'video') {
                   setSelectedVideoId(it.id);
+                  setPlayerOpen(true);
+                  // Try to go fullscreen + landscape on user gesture
+                  void enterFullscreen();
                   return;
                 }
                 if (type === 'channel') {
