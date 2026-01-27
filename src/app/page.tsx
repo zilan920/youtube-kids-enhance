@@ -66,7 +66,7 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen p-6 max-w-5xl mx-auto">
+    <main className="min-h-screen p-4 sm:p-6 max-w-5xl mx-auto">
       <h1 className="text-2xl font-semibold">youtube-kids-enhance</h1>
       <p className="text-sm text-gray-600 mt-1">
         MVP：搜索/播放 + 按播放时长、语言、类型筛选（SafeSearch=Strict）。
@@ -204,11 +204,11 @@ export default function Home() {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={it.thumbnailUrl}
-                    alt={it.title}
-                    className="w-32 h-20 object-cover rounded bg-gray-100"
+                    alt={it.title || 'thumbnail'}
+                    className="w-28 h-16 sm:w-32 sm:h-20 object-cover rounded bg-gray-100"
                   />
                 ) : (
-                  <div className="w-32 h-20 rounded bg-gray-100" />
+                  <div className="w-28 h-16 sm:w-32 sm:h-20 rounded bg-gray-100" />
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="font-medium line-clamp-2">{it.title}</div>
