@@ -7,8 +7,6 @@ export async function GET() {
     const items = await getMostPopularVideos({
       regionCode,
       maxResults: 24,
-      // Heuristic: education category tends to be safer for kids; can be made configurable.
-      videoCategoryId: '27',
     });
     return NextResponse.json({ items });
   } catch (e: unknown) {
