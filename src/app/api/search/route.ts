@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { withCache } from '@/lib/cache';
 import {
   getVideosDetails,
   search,
@@ -6,6 +7,8 @@ import {
   type YoutubeDurationPreset,
   type YoutubeSearchType,
 } from '@/lib/youtube';
+
+const TTL_MS = 10 * 60 * 1000;
 
 function parseNumber(v: string | null): number | undefined {
   if (!v) return undefined;
@@ -23,47 +26,53 @@ export async function GET(req: Request) {
     const lang = (url.searchParams.get('lang') || '').trim();
     const minSec = parseNumber(url.searchParams.get('minSec'));
     const maxSec = parseNumber(url.searchParams.get('maxSec'));
+    const bypass = url.searchParams.get('nocache') === '1';
     const regionCode = (process.env.YOUTUBE_REGION_CODE || 'SG').trim();
 
     if (!q) {
       return NextResponse.json({ error: 'Missing q' }, { status: 400 });
     }
 
-    const base = await search({
-      q,
-      type,
-      durationPreset,
-      relevanceLanguage: lang || undefined,
-      regionCode,
-      maxResults: 20,
-    });
+    const cacheKey = `search:${type}:${durationPreset}:${lang}:${minSec ?? ''}:${maxSec ?? ''}:${regionCode}:${q.toLowerCase()}`;
 
-    // For videos, enrich with duration + optional range filter.
-    if (type === 'video') {
-      const ids = (base as SearchListItem[]).map((x) => x.id).filter(Boolean);
-      const details = await getVideosDetails(ids);
+    const payload = await withCache(
+      cacheKey,
+      TTL_MS,
+      async () => {
+        const base = await search({
+          q,
+          type,
+          durationPreset,
+          relevanceLanguage: lang || undefined,
+          regionCode,
+          maxResults: 20,
+        });
 
-      const filtered = details.filter((v) => {
-        // enforce kids-only
-        if (v.madeForKids !== true) return false;
-        if (v.durationSec === undefined) return false;
-        if (minSec !== undefined && v.durationSec < minSec) return false;
-        if (maxSec !== undefined && v.durationSec > maxSec) return false;
-        return true;
-      });
+        if (type !== 'video') {
+          return { type, items: base } as const;
+        }
 
-      // Optional language filter: prefer either relevanceLanguage (already used) OR snippet.defaultLanguage.
-      const filteredLang = lang
-        ? filtered.filter((v) => {
-            const dl = (v.defaultLanguage || '').toLowerCase();
-            return dl === lang.toLowerCase();
-          })
-        : filtered;
+        const ids = (base as SearchListItem[]).map((x) => x.id).filter(Boolean);
+        const details = await getVideosDetails(ids);
 
-      return NextResponse.json({ type, items: filteredLang });
-    }
+        const filtered = details.filter((v) => {
+          if (v.madeForKids !== true) return false;
+          if (v.durationSec === undefined) return false;
+          if (minSec !== undefined && v.durationSec < minSec) return false;
+          if (maxSec !== undefined && v.durationSec > maxSec) return false;
+          return true;
+        });
 
-    return NextResponse.json({ type, items: base });
+        const filteredLang = lang
+          ? filtered.filter((v) => (v.defaultLanguage || '').toLowerCase() === lang.toLowerCase())
+          : filtered;
+
+        return { type, items: filteredLang } as const;
+      },
+      { bypass }
+    );
+
+    return NextResponse.json(payload);
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown error';
     return NextResponse.json({ error: message }, { status: 500 });

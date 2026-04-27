@@ -1,46 +1,38 @@
 import { NextResponse } from 'next/server';
+import { withCache } from '@/lib/cache';
 import { getVideosDetails, search } from '@/lib/youtube';
 
-export async function GET() {
+// /api/feed is only used as a last-resort fallback when the user has zero keywords configured.
+// Keep the API-cost tiny: one search.list (100 units) + one videos.list (1 unit).
+const FEED_QUERY = 'nursery rhymes';
+const TTL_MS = 10 * 60 * 1000;
+
+export async function GET(req: Request) {
   try {
+    const url = new URL(req.url);
+    const bypass = url.searchParams.get('nocache') === '1';
     const regionCode = (process.env.YOUTUBE_REGION_CODE || 'SG').trim();
 
-    // NOTE: There is no public API for the real YouTube Kids catalogue.
-    // Best-effort approach: search kid-focused queries + enforce `madeForKids=true`.
-    const queries = [
-      'nursery rhymes',
-      'kids songs',
-      'peppa pig',
-      'cartoon for kids',
-      'learn alphabet',
-      'learn numbers',
-    ];
+    const cacheKey = `feed:${regionCode}:${FEED_QUERY}`;
 
-    const pickedIds: string[] = [];
-    const seen = new Set<string>();
+    const items = await withCache(
+      cacheKey,
+      TTL_MS,
+      async () => {
+        const base = await search({
+          q: FEED_QUERY,
+          type: 'video',
+          durationPreset: 'any',
+          regionCode,
+          maxResults: 25,
+        });
 
-    for (const q of queries) {
-      const base = await search({
-        q,
-        type: 'video',
-        durationPreset: 'any',
-        regionCode,
-        maxResults: 25,
-      });
-
-      for (const it of base) {
-        if (!it.id || seen.has(it.id)) continue;
-        seen.add(it.id);
-        pickedIds.push(it.id);
-        if (pickedIds.length >= 50) break;
-      }
-      if (pickedIds.length >= 50) break;
-    }
-
-    const details = await getVideosDetails(pickedIds);
-
-    // strict: only show videos explicitly marked "Made for Kids".
-    const items = details.filter((v) => v.madeForKids === true).slice(0, 24);
+        const ids = base.map((x) => x.id).filter(Boolean);
+        const details = await getVideosDetails(ids);
+        return details.filter((v) => v.madeForKids === true).slice(0, 24);
+      },
+      { bypass }
+    );
 
     return NextResponse.json({ items });
   } catch (e: unknown) {

@@ -122,6 +122,11 @@ export async function search(params: {
 
   const safeSearch = 'strict';
 
+  // YouTube only allows videoDuration filter for type=video; include it in the single request
+  // to avoid a redundant 100-unit search.list call.
+  const videoDuration =
+    type === 'video' && durationPreset !== 'any' ? durationPreset : undefined;
+
   const json = (await ytFetch('search', {
     part: 'snippet',
     q,
@@ -130,11 +135,11 @@ export async function search(params: {
     safeSearch,
     relevanceLanguage,
     regionCode,
-    // for kids-ish content, we bias to videos with captions/education would be better later
+    videoDuration,
   })) as YTSearchResponse;
 
   const items = json.items ?? [];
-  const mapped = items
+  return items
     .map((it) => {
       const id = it.id?.videoId || it.id?.playlistId || it.id?.channelId;
       if (!id) return null;
@@ -148,39 +153,6 @@ export async function search(params: {
       };
     })
     .filter((x): x is NonNullable<typeof x> => Boolean(x));
-
-  // YouTube only allows duration filter for video type.
-  // We apply preset at the API level when possible.
-  if (type === 'video' && durationPreset !== 'any') {
-    // re-run with videoDuration included (cheaper than filtering locally)
-    const json2 = (await ytFetch('search', {
-      part: 'snippet',
-      q,
-      type,
-      maxResults,
-      safeSearch,
-      relevanceLanguage,
-      regionCode,
-      videoDuration: durationPreset,
-    })) as YTSearchResponse;
-
-    const items2 = json2.items ?? [];
-    return items2
-      .map((it) => {
-        const id = it.id?.videoId;
-        if (!id) return null;
-        return {
-          id,
-          title: it.snippet?.title ?? '',
-          channelTitle: it.snippet?.channelTitle ?? '',
-          publishedAt: it.snippet?.publishedAt,
-          thumbnailUrl: it.snippet?.thumbnails?.medium?.url || it.snippet?.thumbnails?.default?.url,
-        };
-      })
-      .filter((x): x is NonNullable<typeof x> => Boolean(x));
-  }
-
-  return mapped;
 }
 
 export async function getMostPopularVideos(params: {
