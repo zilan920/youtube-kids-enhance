@@ -24,6 +24,35 @@ const VIDEO_LICENSES: YoutubeVideoLicense[] = ['any', 'creativeCommon', 'youtube
 const VIDEO_TYPES: YoutubeVideoType[] = ['any', 'episode', 'movie'];
 const MADE_FOR_KIDS = ['required', 'any'] as const;
 type MadeForKidsFilter = (typeof MADE_FOR_KIDS)[number];
+type RejectReason =
+  | 'notMadeForKids'
+  | 'notEmbeddable'
+  | 'notPlayableInRegion'
+  | 'missingDuration'
+  | 'tooShort'
+  | 'tooLong'
+  | 'langMismatch';
+
+const REJECT_REASONS: RejectReason[] = [
+  'notMadeForKids',
+  'notEmbeddable',
+  'notPlayableInRegion',
+  'missingDuration',
+  'tooShort',
+  'tooLong',
+  'langMismatch',
+];
+
+function emptyRejectCounts(): Record<RejectReason, number> {
+  return Object.fromEntries(REJECT_REASONS.map((reason) => [reason, 0])) as Record<
+    RejectReason,
+    number
+  >;
+}
+
+function logSearch(stage: string, data: Record<string, unknown>) {
+  console.info(`[api/search] ${stage}`, JSON.stringify(data));
+}
 
 function parseNumber(v: string | null): number | undefined {
   if (!v) return undefined;
@@ -99,6 +128,31 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Missing q' }, { status: 400 });
     }
 
+    logSearch('request', {
+      q,
+      type,
+      durationPreset,
+      minSec,
+      maxSec,
+      regionCode,
+      maxResults,
+      order,
+      madeForKids,
+      lang: lang || undefined,
+      langStrict,
+      channelId: channelId || undefined,
+      publishedAfter,
+      publishedBefore,
+      videoCaption,
+      videoDefinition,
+      videoDimension,
+      videoCategoryId: videoCategoryId || undefined,
+      videoLicense,
+      videoType,
+      topicId: topicId || undefined,
+      bypassCache: bypass,
+    });
+
     const cacheKey = JSON.stringify({
       route: 'search',
       type,
@@ -124,10 +178,14 @@ export async function GET(req: Request) {
       q: q.toLowerCase(),
     });
 
+    let loadedFresh = false;
     const payload = await withCache(
       cacheKey,
       TTL_MS,
       async () => {
+        loadedFresh = true;
+        logSearch('cache-miss', { q, madeForKids, bypassCache: bypass });
+
         const base = await search({
           q,
           type,
@@ -148,35 +206,107 @@ export async function GET(req: Request) {
           topicId: topicId || undefined,
         });
 
+        logSearch('youtube-search-result', {
+          q,
+          type,
+          count: base.length,
+          ids: base.slice(0, 5).map((item) => item.id),
+        });
+
         if (type !== 'video') {
           return { type, items: base } as const;
         }
 
         const ids = (base as SearchListItem[]).map((x) => x.id).filter(Boolean);
         const details = await getVideosDetails(ids);
+        const detailIds = new Set(details.map((v) => v.id));
+        const missingDetailCount = ids.filter((id) => !detailIds.has(id)).length;
+        const rejectCounts = emptyRejectCounts();
+        const rejectSamples: Array<{
+          id: string;
+          title: string;
+          channelTitle: string;
+          durationSec?: number;
+          madeForKids?: boolean;
+          embeddable?: boolean;
+          reasons: RejectReason[];
+        }> = [];
 
         const filtered = details.filter((v) => {
-          if (madeForKids === 'required' && v.madeForKids !== true) return false;
-          if (v.embeddable !== true) return false;
-          if (!isVideoPlayableInRegion(v, regionCode)) return false;
-          if (v.durationSec === undefined) return false;
-          if (minSec !== undefined && v.durationSec < minSec) return false;
-          if (maxSec !== undefined && v.durationSec > maxSec) return false;
-          return true;
+          const reasons: RejectReason[] = [];
+          if (madeForKids === 'required' && v.madeForKids !== true) reasons.push('notMadeForKids');
+          if (v.embeddable !== true) reasons.push('notEmbeddable');
+          if (!isVideoPlayableInRegion(v, regionCode)) reasons.push('notPlayableInRegion');
+          if (v.durationSec === undefined) reasons.push('missingDuration');
+          if (minSec !== undefined && v.durationSec !== undefined && v.durationSec < minSec) {
+            reasons.push('tooShort');
+          }
+          if (maxSec !== undefined && v.durationSec !== undefined && v.durationSec > maxSec) {
+            reasons.push('tooLong');
+          }
+
+          for (const reason of reasons) rejectCounts[reason] += 1;
+          if (reasons.length > 0 && rejectSamples.length < 5) {
+            rejectSamples.push({
+              id: v.id,
+              title: v.title,
+              channelTitle: v.channelTitle,
+              durationSec: v.durationSec,
+              madeForKids: v.madeForKids,
+              embeddable: v.embeddable,
+              reasons,
+            });
+          }
+
+          return reasons.length === 0;
         });
 
         const filteredLang = lang && langStrict
-          ? filtered.filter((v) => (v.defaultLanguage || '').toLowerCase() === lang.toLowerCase())
+          ? filtered.filter((v) => {
+              const matches = (v.defaultLanguage || '').toLowerCase() === lang.toLowerCase();
+              if (!matches) {
+                rejectCounts.langMismatch += 1;
+                if (rejectSamples.length < 5) {
+                  rejectSamples.push({
+                    id: v.id,
+                    title: v.title,
+                    channelTitle: v.channelTitle,
+                    durationSec: v.durationSec,
+                    madeForKids: v.madeForKids,
+                    embeddable: v.embeddable,
+                    reasons: ['langMismatch'],
+                  });
+                }
+              }
+              return matches;
+            })
           : filtered;
+
+        logSearch('filter-result', {
+          q,
+          type,
+          searchCount: base.length,
+          detailCount: details.length,
+          missingDetailCount,
+          rejectCounts,
+          afterCommonFiltersCount: filtered.length,
+          returnedCount: filteredLang.length,
+          rejectSamples,
+        });
 
         return { type, items: filteredLang } as const;
       },
       { bypass }
     );
 
+    if (!loadedFresh) {
+      logSearch('cache-hit', { q, madeForKids, returnedCount: payload.items.length });
+    }
+
     return NextResponse.json(payload);
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown error';
+    logSearch('error', { message });
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
