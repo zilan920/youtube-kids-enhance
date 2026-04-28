@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { withCache } from '@/lib/cache';
-import { getVideosDetails, search } from '@/lib/youtube';
+import { getVideosDetails, isVideoPlayableInRegion, search } from '@/lib/youtube';
 
 // /api/feed is only used as a last-resort fallback when the user has zero keywords configured.
 // Keep the API-cost tiny: one search.list (100 units) + one videos.list (1 unit).
@@ -29,7 +29,14 @@ export async function GET(req: Request) {
 
         const ids = base.map((x) => x.id).filter(Boolean);
         const details = await getVideosDetails(ids);
-        return details.filter((v) => v.madeForKids === true).slice(0, 24);
+        return details
+          .filter(
+            (v) =>
+              v.madeForKids === true &&
+              v.embeddable === true &&
+              isVideoPlayableInRegion(v, regionCode)
+          )
+          .slice(0, 24);
       },
       { bypass }
     );

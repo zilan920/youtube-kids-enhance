@@ -24,6 +24,13 @@ export type VideoListItem = {
   durationText?: string;
   defaultLanguage?: string;
   madeForKids?: boolean;
+  embeddable?: boolean;
+  regionRestriction?: YoutubeRegionRestriction;
+};
+
+export type YoutubeRegionRestriction = {
+  allowed?: string[];
+  blocked?: string[];
 };
 
 function mustGetEnv(name: string): string {
@@ -71,9 +78,11 @@ type YTVideoItem = {
   };
   contentDetails?: {
     duration?: string;
+    regionRestriction?: YoutubeRegionRestriction;
   };
   status?: {
     madeForKids?: boolean;
+    embeddable?: boolean;
   };
 };
 
@@ -136,6 +145,8 @@ export async function search(params: {
     relevanceLanguage,
     regionCode,
     videoDuration,
+    videoEmbeddable: type === 'video' ? 'true' : undefined,
+    videoSyndicated: type === 'video' ? 'true' : undefined,
   })) as YTSearchResponse;
 
   const items = json.items ?? [];
@@ -186,6 +197,8 @@ export async function getMostPopularVideos(params: {
         thumbnailUrl: it.snippet?.thumbnails?.medium?.url || it.snippet?.thumbnails?.default?.url,
         defaultLanguage: it.snippet?.defaultLanguage,
         madeForKids: it.status?.madeForKids,
+        embeddable: it.status?.embeddable,
+        regionRestriction: it.contentDetails?.regionRestriction,
         durationSec,
         durationText: durationSec !== undefined ? formatDuration(durationSec) : undefined,
       };
@@ -219,9 +232,29 @@ export async function getVideosDetails(videoIds: string[]): Promise<VideoListIte
         thumbnailUrl: it.snippet?.thumbnails?.medium?.url || it.snippet?.thumbnails?.default?.url,
         defaultLanguage: it.snippet?.defaultLanguage,
         madeForKids: it.status?.madeForKids,
+        embeddable: it.status?.embeddable,
+        regionRestriction: it.contentDetails?.regionRestriction,
         durationSec,
         durationText: durationSec !== undefined ? formatDuration(durationSec) : undefined,
       };
     })
     .filter((x): x is NonNullable<typeof x> => Boolean(x));
+}
+
+export function isVideoPlayableInRegion(video: VideoListItem, regionCode?: string): boolean {
+  const normalizedRegion = regionCode?.trim().toUpperCase();
+  if (!normalizedRegion) return true;
+
+  const restriction = video.regionRestriction;
+  if (!restriction) return true;
+
+  if (restriction.allowed) {
+    return restriction.allowed.map((region) => region.toUpperCase()).includes(normalizedRegion);
+  }
+
+  if (restriction.blocked) {
+    return !restriction.blocked.map((region) => region.toUpperCase()).includes(normalizedRegion);
+  }
+
+  return true;
 }

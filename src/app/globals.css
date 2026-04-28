@@ -17,6 +17,18 @@
   scrollbar-width: none;
 }
 
+.youtube-player-frame iframe,
+.youtube-player-frame .plyr,
+.youtube-player-frame .plyr__video-wrapper,
+.youtube-player-frame .plyr__video-embed {
+  width: 100%;
+  height: 100%;
+}
+
+.youtube-player-frame .plyr__video-embed {
+  padding-bottom: 0;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

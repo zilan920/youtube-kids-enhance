@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { withCache } from '@/lib/cache';
 import {
   getVideosDetails,
+  isVideoPlayableInRegion,
   search,
   type SearchListItem,
   type YoutubeDurationPreset,
@@ -57,6 +58,8 @@ export async function GET(req: Request) {
 
         const filtered = details.filter((v) => {
           if (v.madeForKids !== true) return false;
+          if (v.embeddable !== true) return false;
+          if (!isVideoPlayableInRegion(v, regionCode)) return false;
           if (v.durationSec === undefined) return false;
           if (minSec !== undefined && v.durationSec < minSec) return false;
           if (maxSec !== undefined && v.durationSec > maxSec) return false;

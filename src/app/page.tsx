@@ -7,6 +7,7 @@ import SettingsModal, {
   type KeywordConfig,
   type Settings,
 } from './components/SettingsModal';
+import VideoPlayer, { type PlayerMode } from './components/VideoPlayer';
 
 type BaseItem = {
   id: string;
@@ -22,6 +23,7 @@ type VideoItem = BaseItem & {
   durationSec?: number;
   defaultLanguage?: string;
   madeForKids?: boolean;
+  embeddable?: boolean;
 };
 
 type SectionState = {
@@ -36,6 +38,8 @@ const STORAGE_KEY = 'youtube-kids-enhance.settings.v4';
 const STORAGE_KEY_V3 = 'youtube-kids-enhance.settings.v3';
 const SECTIONS_CACHE_KEY = 'youtube-kids-enhance.sections.v1';
 const CLIENT_CACHE_TTL_MS = 3 * 60 * 1000;
+const PLAYER_MODE: PlayerMode =
+  process.env.NEXT_PUBLIC_YOUTUBE_PLAYER_MODE === 'plyr' ? 'plyr' : 'iframe';
 const DEFAULT_SETTINGS: Settings = {
   keywords: [
     { keyword: 'nursery rhymes' },
@@ -143,7 +147,7 @@ export default function Home() {
   const [sections, setSections] = useState<SectionState[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<Pick<VideoItem, 'id' | 'title'> | null>(null);
   const [playerOpen, setPlayerOpen] = useState(false);
 
   const fetchSeqRef = useRef(0);
@@ -301,8 +305,14 @@ export default function Home() {
     runFetch(settings, { bypassCache: true });
   }
 
-  function playVideo(id: string) {
-    setSelectedVideoId(id);
+  function closePlayer() {
+    setPlayerOpen(false);
+    setSelectedVideo(null);
+    void exitFullscreen();
+  }
+
+  function playVideo(video: VideoItem) {
+    setSelectedVideo({ id: video.id, title: video.title });
     setPlayerOpen(true);
     void enterFullscreen();
   }
@@ -367,7 +377,7 @@ export default function Home() {
         </button>
       </header>
 
-      {playerOpen && selectedVideoId ? (
+      {playerOpen && selectedVideo ? (
         <div className="fixed inset-0 z-50 bg-gradient-to-b from-pink-100 via-yellow-50 to-sky-100 dark:from-[#1a1424] dark:via-[#141826] dark:to-[#0f1a1f]">
           <div className="absolute inset-0 opacity-30 pointer-events-none" />
 
@@ -376,10 +386,7 @@ export default function Home() {
               <div className="text-sm font-semibold text-pink-900 dark:text-pink-200">正在播放</div>
               <button
                 className="px-4 py-2 rounded-full bg-white/80 border border-pink-200 text-pink-900 shadow-sm dark:bg-neutral-800/80 dark:border-neutral-700 dark:text-pink-100"
-                onClick={() => {
-                  setPlayerOpen(false);
-                  void exitFullscreen();
-                }}
+                onClick={closePlayer}
               >
                 退出
               </button>
@@ -390,15 +397,13 @@ export default function Home() {
                 id="player-shell"
                 className="w-full max-w-5xl h-[80vh] sm:h-[82vh] rounded-[28px] bg-white/70 border border-pink-200 shadow-lg p-3 dark:bg-neutral-900/70 dark:border-neutral-700"
               >
-                <div className="w-full h-full rounded-[20px] overflow-hidden bg-black">
-                  <iframe
-                    className="w-full h-full"
-                    src={`https://www.youtube-nocookie.com/embed/${selectedVideoId}?autoplay=1&playsinline=1`}
-                    title="YouTube video player"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                </div>
+                <VideoPlayer
+                  key={`${PLAYER_MODE}:${selectedVideo.id}`}
+                  videoId={selectedVideo.id}
+                  title={selectedVideo.title}
+                  mode={PLAYER_MODE}
+                  onClose={closePlayer}
+                />
               </div>
             </div>
           </div>
@@ -449,7 +454,7 @@ function KeywordSection({
   onPlay,
 }: {
   section: SectionState;
-  onPlay: (id: string) => void;
+  onPlay: (video: VideoItem) => void;
 }) {
   return (
     <section>
@@ -481,7 +486,7 @@ function TwoRowScroller({
   onPlay,
 }: {
   items: VideoItem[];
-  onPlay: (id: string) => void;
+  onPlay: (video: VideoItem) => void;
 }) {
   return (
     <div className="mt-2 grid grid-rows-2 grid-flow-col auto-cols-[45%] sm:auto-cols-[30%] lg:auto-cols-[22%] gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-2">
@@ -489,7 +494,7 @@ function TwoRowScroller({
         <button
           key={it.id}
           className="snap-start text-left rounded-2xl overflow-hidden border bg-white hover:shadow-sm active:scale-[0.99] transition dark:bg-neutral-800 dark:border-neutral-700 dark:hover:shadow-[0_2px_10px_rgba(0,0,0,0.6)]"
-          onClick={() => onPlay(it.id)}
+          onClick={() => onPlay(it)}
         >
           <div className="aspect-video bg-gray-100 dark:bg-neutral-700">
             {it.thumbnailUrl ? (

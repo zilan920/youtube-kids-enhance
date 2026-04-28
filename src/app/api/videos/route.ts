@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getVideosDetails } from '@/lib/youtube';
+import { getVideosDetails, isVideoPlayableInRegion } from '@/lib/youtube';
 
 export async function GET(req: Request) {
   try {
@@ -13,7 +13,10 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Missing ids' }, { status: 400 });
     }
 
-    const items = await getVideosDetails(ids);
+    const regionCode = (process.env.YOUTUBE_REGION_CODE || 'SG').trim();
+    const items = (await getVideosDetails(ids)).filter(
+      (v) => v.embeddable === true && isVideoPlayableInRegion(v, regionCode)
+    );
     return NextResponse.json({ items });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown error';
