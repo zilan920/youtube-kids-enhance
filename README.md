@@ -4,6 +4,7 @@
 - **关键字分段首页**：可在设置中配置多个关键字，首页按每个关键字分段横向滚动展示（两行视频卡片，Netflix/YT Kids 风格）
 - **播放时长** 筛选：`short/medium/long` 预设 + 可选自定义最短/最长秒数
 - **语言** 筛选（`relevanceLanguage` + `defaultLanguage`）
+- **搜索参数**：可配置地区、排序、返回数量、发布时间、频道、字幕、清晰度、分类、授权、视频类型、Topic ID 和 Made for Kids 过滤
 
 > 说明：YouTube Kids 的完整能力（家长控制、账号体系、年龄分级、白名单、离线、强审查等）非常庞大。本项目先做可运行的 MVP：关键字分段浏览 + 播放，并保留后续扩展点。
 
@@ -23,9 +24,10 @@
   - **设置弹窗** 中配置：
     - 关键字列表（最多 6 个，每个关键字作为一段）
     - 视频时长：`any/short/medium/long` 预设 + 自定义最短/最长秒数
-    - 语言：`en/zh/...`（可选）
+    - 语言：`en/zh/...`（可选），可选择是否精确匹配视频默认语言
+    - 搜索参数：地区、返回数量、排序、发布时间、频道、字幕、清晰度、分类、授权、视频类型、Topic ID、Made for Kids
   - 主区域：按关键字分段展示，每段左上角为小标题（关键字），右侧横向滚动两行视频卡片
-  - 类型固定为 `video`（不对用户暴露），所有视频强制 `madeForKids=true`
+  - 类型固定为 `video`（不对用户暴露），默认只显示 `madeForKids=true`，可在设置中临时放宽用于排查搜索结果
   - 点击视频：内嵌播放器（沉浸式全屏）
 
 ### Phase 3 — 童趣/安全增强（后续）
@@ -54,8 +56,30 @@ pnpm dev
 ## 环境变量
 
 - `YOUTUBE_API_KEY`：必填
-- `YOUTUBE_REGION_CODE`：可选，默认 `SG`
+- `YOUTUBE_REGION_CODE`：可选，默认 `SG`；设置里的地区代码会覆盖它
 - `NEXT_PUBLIC_YOUTUBE_PLAYER_MODE`：可选，默认 `iframe`；设置为 `plyr` 时启用 Plyr 播放器 PoC
+
+## 搜索参数说明
+
+每个关键字会独立请求 `/api/search`。客户端会传入关键字、时长、语言和设置里的搜索参数；服务端先调用 YouTube `search.list`，再用 `videos.list` 查询详情并做二次过滤。
+
+设置中可调整：
+- `Made for Kids`：默认“只看 Made for Kids”；如果搜索不到，可临时切到“不限制”判断是否被儿童内容过滤挡掉。
+- `地区代码`：传给 `regionCode`，也用于过滤当前地区不可播放的视频。
+- `每个关键字返回数量`：传给 `maxResults`，范围 1-50。因为后续还会过滤 made-for-kids、可嵌入、地区、时长，搜不到时可以先调到 50。
+- `排序`：传给 `order`，支持相关度、发布时间、观看量、评分、标题。
+- `发布开始/结束日期`：传给 `publishedAfter` / `publishedBefore`。
+- `频道 ID`：传给 `channelId`。
+- `字幕`、`清晰度`、`2D/3D`、`分类 ID`、`授权`、`视频类型`、`Topic ID`：分别传给 YouTube 对应的视频搜索参数。
+- `语言`：默认只作为 `relevanceLanguage` 影响排序；勾选“默认语言必须精确匹配”后，服务端会继续用 `defaultLanguage` 做严格过滤。
+
+仍保持固定、不在设置中暴露：
+- `type=video`
+- `safeSearch=strict`
+- `videoEmbeddable=true`
+- `videoSyndicated=true`
+
+如果搜索不到，建议按顺序排查：把返回数量调到 50，清空日期/频道/分类/Topic 等窄条件，关闭“默认语言必须精确匹配”，检查地区代码，最后临时把 Made for Kids 切到“不限制”。
 
 ## 里程碑验收（MVP）
 - [ ] 能通过设置弹窗配置关键字/时长/语言并持久化到 localStorage

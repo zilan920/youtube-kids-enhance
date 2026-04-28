@@ -4,6 +4,12 @@ const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
 
 export type YoutubeSearchType = 'video' | 'playlist' | 'channel';
 export type YoutubeDurationPreset = 'any' | 'short' | 'medium' | 'long';
+export type YoutubeSearchOrder = 'date' | 'rating' | 'relevance' | 'title' | 'viewCount';
+export type YoutubeVideoCaption = 'any' | 'closedCaption' | 'none';
+export type YoutubeVideoDefinition = 'any' | 'high' | 'standard';
+export type YoutubeVideoDimension = '2d' | '3d' | 'any';
+export type YoutubeVideoLicense = 'any' | 'creativeCommon' | 'youtube';
+export type YoutubeVideoType = 'any' | 'episode' | 'movie';
 
 export type SearchListItem = {
   id: string;
@@ -119,6 +125,17 @@ export async function search(params: {
   relevanceLanguage?: string;
   regionCode?: string;
   maxResults?: number;
+  order?: YoutubeSearchOrder;
+  publishedAfter?: string;
+  publishedBefore?: string;
+  channelId?: string;
+  videoCaption?: YoutubeVideoCaption;
+  videoDefinition?: YoutubeVideoDefinition;
+  videoDimension?: YoutubeVideoDimension;
+  videoCategoryId?: string;
+  videoLicense?: YoutubeVideoLicense;
+  videoType?: YoutubeVideoType;
+  topicId?: string;
 }): Promise<SearchListItem[]> {
   const {
     q,
@@ -127,6 +144,17 @@ export async function search(params: {
     relevanceLanguage,
     regionCode,
     maxResults = 20,
+    order,
+    publishedAfter,
+    publishedBefore,
+    channelId,
+    videoCaption = 'any',
+    videoDefinition = 'any',
+    videoDimension = 'any',
+    videoCategoryId,
+    videoLicense = 'any',
+    videoType = 'any',
+    topicId,
   } = params;
 
   const safeSearch = 'strict';
@@ -144,7 +172,18 @@ export async function search(params: {
     safeSearch,
     relevanceLanguage,
     regionCode,
+    order,
+    publishedAfter,
+    publishedBefore,
+    channelId,
+    topicId,
     videoDuration,
+    videoCaption: type === 'video' && videoCaption !== 'any' ? videoCaption : undefined,
+    videoDefinition: type === 'video' && videoDefinition !== 'any' ? videoDefinition : undefined,
+    videoDimension: type === 'video' && videoDimension !== 'any' ? videoDimension : undefined,
+    videoCategoryId: type === 'video' ? videoCategoryId : undefined,
+    videoLicense: type === 'video' && videoLicense !== 'any' ? videoLicense : undefined,
+    videoType: type === 'video' && videoType !== 'any' ? videoType : undefined,
     videoEmbeddable: type === 'video' ? 'true' : undefined,
     videoSyndicated: type === 'video' ? 'true' : undefined,
   })) as YTSearchResponse;

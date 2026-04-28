@@ -3,6 +3,13 @@
 import { useEffect, useState } from 'react';
 
 export type DurationPreset = 'any' | 'short' | 'medium' | 'long';
+export type MadeForKidsFilter = 'required' | 'any';
+export type SearchOrder = 'date' | 'rating' | 'relevance' | 'title' | 'viewCount';
+export type VideoCaptionFilter = 'any' | 'closedCaption' | 'none';
+export type VideoDefinitionFilter = 'any' | 'high' | 'standard';
+export type VideoDimensionFilter = '2d' | '3d' | 'any';
+export type VideoLicenseFilter = 'any' | 'creativeCommon' | 'youtube';
+export type VideoTypeFilter = 'any' | 'episode' | 'movie';
 
 export type KeywordConfig = {
   keyword: string;
@@ -17,6 +24,21 @@ export type Settings = {
   minSec?: number;
   maxSec?: number;
   lang: string;
+  langStrict: boolean;
+  regionCode: string;
+  maxResults: number;
+  order: SearchOrder;
+  publishedAfter: string;
+  publishedBefore: string;
+  channelId: string;
+  videoCaption: VideoCaptionFilter;
+  videoDefinition: VideoDefinitionFilter;
+  videoDimension: VideoDimensionFilter;
+  videoCategoryId: string;
+  videoLicense: VideoLicenseFilter;
+  videoType: VideoTypeFilter;
+  topicId: string;
+  madeForKids: MadeForKidsFilter;
 };
 
 type Props = {
@@ -31,6 +53,44 @@ const PRESETS: { id: DurationPreset; label: string }[] = [
   { id: 'short', label: '短 (<4min)' },
   { id: 'medium', label: '中 (4-20min)' },
   { id: 'long', label: '长 (>20min)' },
+];
+
+const ORDERS: { id: SearchOrder; label: string }[] = [
+  { id: 'relevance', label: '相关度' },
+  { id: 'date', label: '发布时间' },
+  { id: 'viewCount', label: '观看量' },
+  { id: 'rating', label: '评分' },
+  { id: 'title', label: '标题' },
+];
+
+const CAPTIONS: { id: VideoCaptionFilter; label: string }[] = [
+  { id: 'any', label: '不限字幕' },
+  { id: 'closedCaption', label: '有字幕' },
+  { id: 'none', label: '无字幕' },
+];
+
+const DEFINITIONS: { id: VideoDefinitionFilter; label: string }[] = [
+  { id: 'any', label: '不限清晰度' },
+  { id: 'high', label: 'HD' },
+  { id: 'standard', label: 'SD' },
+];
+
+const DIMENSIONS: { id: VideoDimensionFilter; label: string }[] = [
+  { id: 'any', label: '不限 2D/3D' },
+  { id: '2d', label: '2D' },
+  { id: '3d', label: '3D' },
+];
+
+const LICENSES: { id: VideoLicenseFilter; label: string }[] = [
+  { id: 'any', label: '不限授权' },
+  { id: 'youtube', label: 'YouTube 标准' },
+  { id: 'creativeCommon', label: 'Creative Commons' },
+];
+
+const VIDEO_TYPES: { id: VideoTypeFilter; label: string }[] = [
+  { id: 'any', label: '不限类型' },
+  { id: 'episode', label: '剧集' },
+  { id: 'movie', label: '电影' },
 ];
 
 function hasOverride(kc: KeywordConfig): boolean {
@@ -75,6 +135,25 @@ export default function SettingsModal({
     initial.maxSec !== undefined ? String(initial.maxSec) : ''
   );
   const [lang, setLang] = useState<string>(initial.lang);
+  const [langStrict, setLangStrict] = useState<boolean>(initial.langStrict);
+  const [regionCode, setRegionCode] = useState<string>(initial.regionCode);
+  const [maxResults, setMaxResults] = useState<string>(String(initial.maxResults));
+  const [order, setOrder] = useState<SearchOrder>(initial.order);
+  const [publishedAfter, setPublishedAfter] = useState<string>(initial.publishedAfter);
+  const [publishedBefore, setPublishedBefore] = useState<string>(initial.publishedBefore);
+  const [channelId, setChannelId] = useState<string>(initial.channelId);
+  const [videoCaption, setVideoCaption] = useState<VideoCaptionFilter>(initial.videoCaption);
+  const [videoDefinition, setVideoDefinition] = useState<VideoDefinitionFilter>(
+    initial.videoDefinition
+  );
+  const [videoDimension, setVideoDimension] = useState<VideoDimensionFilter>(
+    initial.videoDimension
+  );
+  const [videoCategoryId, setVideoCategoryId] = useState<string>(initial.videoCategoryId);
+  const [videoLicense, setVideoLicense] = useState<VideoLicenseFilter>(initial.videoLicense);
+  const [videoType, setVideoType] = useState<VideoTypeFilter>(initial.videoType);
+  const [topicId, setTopicId] = useState<string>(initial.topicId);
+  const [madeForKids, setMadeForKids] = useState<MadeForKidsFilter>(initial.madeForKids);
   const [draft, setDraft] = useState<string>('');
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -147,6 +226,21 @@ export default function SettingsModal({
       return;
     }
 
+    const parsedMaxResults = Number(maxResults);
+    if (
+      !Number.isInteger(parsedMaxResults) ||
+      parsedMaxResults < 1 ||
+      parsedMaxResults > 50
+    ) {
+      setErr('每个关键字返回数量必须是 1-50 的整数');
+      return;
+    }
+
+    if (publishedAfter && publishedBefore && publishedAfter > publishedBefore) {
+      setErr('发布时间开始日期不能晚于结束日期');
+      return;
+    }
+
     for (const kc of keywords) {
       if (kc.minSec !== undefined && kc.maxSec !== undefined && kc.minSec > kc.maxSec) {
         setErr(`关键字「${kc.keyword}」的最短秒数不能大于最长秒数`);
@@ -160,11 +254,27 @@ export default function SettingsModal({
       minSec: gMin.value,
       maxSec: gMax.value,
       lang: lang.trim(),
+      langStrict,
+      regionCode: regionCode.trim().toUpperCase(),
+      maxResults: parsedMaxResults,
+      order,
+      publishedAfter,
+      publishedBefore,
+      channelId: channelId.trim(),
+      videoCaption,
+      videoDefinition,
+      videoDimension,
+      videoCategoryId: videoCategoryId.trim(),
+      videoLicense,
+      videoType,
+      topicId: topicId.trim(),
+      madeForKids,
     });
   }
 
   const inputCls =
     'border border-pink-100 rounded-full px-4 py-2 text-sm outline-none focus:ring-4 focus:ring-pink-100 bg-white text-neutral-900 placeholder:text-neutral-400 dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus:ring-pink-900/40';
+  const selectCls = `${inputCls} appearance-none`;
 
   return (
     <div
@@ -173,7 +283,7 @@ export default function SettingsModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-lg rounded-3xl bg-white shadow-2xl border border-pink-100 overflow-hidden dark:bg-neutral-900 dark:border-neutral-700">
+      <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl border border-pink-100 overflow-hidden dark:bg-neutral-900 dark:border-neutral-700">
         <div className="px-5 py-4 border-b border-pink-100 flex items-center justify-between dark:border-neutral-700">
           <div className="text-lg font-semibold text-pink-900 dark:text-pink-200">设置</div>
           <button
@@ -418,6 +528,221 @@ export default function SettingsModal({
               }}
               placeholder="例如 en / zh / ja"
             />
+            <label className="mt-2 flex items-center gap-2 text-xs text-gray-600 dark:text-neutral-400">
+              <input
+                type="checkbox"
+                checked={langStrict}
+                onChange={(e) => {
+                  setLangStrict(e.target.checked);
+                  setErr(null);
+                }}
+              />
+              默认语言必须精确匹配
+            </label>
+          </section>
+
+          <section>
+            <div className="text-sm font-medium text-gray-800 dark:text-neutral-200">搜索参数</div>
+            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="text-xs text-gray-600 dark:text-neutral-400">
+                Made for Kids
+                <select
+                  className={`mt-1 w-full ${selectCls}`}
+                  value={madeForKids}
+                  onChange={(e) => setMadeForKids(e.target.value as MadeForKidsFilter)}
+                >
+                  <option value="required">只看 Made for Kids</option>
+                  <option value="any">不限制</option>
+                </select>
+              </label>
+
+              <label className="text-xs text-gray-600 dark:text-neutral-400">
+                地区代码
+                <input
+                  className={`mt-1 w-full ${inputCls}`}
+                  value={regionCode}
+                  onChange={(e) => {
+                    setRegionCode(e.target.value);
+                    setErr(null);
+                  }}
+                  placeholder="SG / US / JP"
+                  maxLength={2}
+                />
+              </label>
+
+              <label className="text-xs text-gray-600 dark:text-neutral-400">
+                每个关键字返回数量
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  className={`mt-1 w-full ${inputCls}`}
+                  value={maxResults}
+                  onChange={(e) => {
+                    setMaxResults(e.target.value);
+                    setErr(null);
+                  }}
+                />
+              </label>
+
+              <label className="text-xs text-gray-600 dark:text-neutral-400">
+                排序
+                <select
+                  className={`mt-1 w-full ${selectCls}`}
+                  value={order}
+                  onChange={(e) => setOrder(e.target.value as SearchOrder)}
+                >
+                  {ORDERS.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-xs text-gray-600 dark:text-neutral-400">
+                发布开始日期
+                <input
+                  type="date"
+                  className={`mt-1 w-full ${inputCls}`}
+                  value={publishedAfter}
+                  onChange={(e) => {
+                    setPublishedAfter(e.target.value);
+                    setErr(null);
+                  }}
+                />
+              </label>
+
+              <label className="text-xs text-gray-600 dark:text-neutral-400">
+                发布结束日期
+                <input
+                  type="date"
+                  className={`mt-1 w-full ${inputCls}`}
+                  value={publishedBefore}
+                  onChange={(e) => {
+                    setPublishedBefore(e.target.value);
+                    setErr(null);
+                  }}
+                />
+              </label>
+
+              <label className="text-xs text-gray-600 dark:text-neutral-400">
+                频道 ID
+                <input
+                  className={`mt-1 w-full ${inputCls}`}
+                  value={channelId}
+                  onChange={(e) => {
+                    setChannelId(e.target.value);
+                    setErr(null);
+                  }}
+                  placeholder="UC..."
+                />
+              </label>
+
+              <label className="text-xs text-gray-600 dark:text-neutral-400">
+                字幕
+                <select
+                  className={`mt-1 w-full ${selectCls}`}
+                  value={videoCaption}
+                  onChange={(e) => setVideoCaption(e.target.value as VideoCaptionFilter)}
+                >
+                  {CAPTIONS.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-xs text-gray-600 dark:text-neutral-400">
+                清晰度
+                <select
+                  className={`mt-1 w-full ${selectCls}`}
+                  value={videoDefinition}
+                  onChange={(e) => setVideoDefinition(e.target.value as VideoDefinitionFilter)}
+                >
+                  {DEFINITIONS.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-xs text-gray-600 dark:text-neutral-400">
+                2D / 3D
+                <select
+                  className={`mt-1 w-full ${selectCls}`}
+                  value={videoDimension}
+                  onChange={(e) => setVideoDimension(e.target.value as VideoDimensionFilter)}
+                >
+                  {DIMENSIONS.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-xs text-gray-600 dark:text-neutral-400">
+                分类 ID
+                <input
+                  className={`mt-1 w-full ${inputCls}`}
+                  value={videoCategoryId}
+                  onChange={(e) => {
+                    setVideoCategoryId(e.target.value);
+                    setErr(null);
+                  }}
+                  placeholder="例如 27"
+                />
+              </label>
+
+              <label className="text-xs text-gray-600 dark:text-neutral-400">
+                授权
+                <select
+                  className={`mt-1 w-full ${selectCls}`}
+                  value={videoLicense}
+                  onChange={(e) => setVideoLicense(e.target.value as VideoLicenseFilter)}
+                >
+                  {LICENSES.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-xs text-gray-600 dark:text-neutral-400">
+                视频类型
+                <select
+                  className={`mt-1 w-full ${selectCls}`}
+                  value={videoType}
+                  onChange={(e) => setVideoType(e.target.value as VideoTypeFilter)}
+                >
+                  {VIDEO_TYPES.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-xs text-gray-600 dark:text-neutral-400">
+                Topic ID
+                <input
+                  className={`mt-1 w-full ${inputCls}`}
+                  value={topicId}
+                  onChange={(e) => {
+                    setTopicId(e.target.value);
+                    setErr(null);
+                  }}
+                  placeholder="/m/04rlf"
+                />
+              </label>
+            </div>
+            <div className="mt-2 text-[11px] text-gray-500 dark:text-neutral-500">
+              SafeSearch、只搜索视频、可嵌入和可站外播放仍保持固定开启。
+            </div>
           </section>
 
           {err ? <div className="text-sm text-red-600 dark:text-red-400">{err}</div> : null}

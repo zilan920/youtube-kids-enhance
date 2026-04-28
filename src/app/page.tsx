@@ -5,7 +5,14 @@ import SettingsModal, {
   describeDuration,
   type DurationPreset,
   type KeywordConfig,
+  type MadeForKidsFilter,
+  type SearchOrder,
   type Settings,
+  type VideoCaptionFilter,
+  type VideoDefinitionFilter,
+  type VideoDimensionFilter,
+  type VideoLicenseFilter,
+  type VideoTypeFilter,
 } from './components/SettingsModal';
 import VideoPlayer, { type PlayerMode } from './components/VideoPlayer';
 
@@ -40,6 +47,13 @@ const SECTIONS_CACHE_KEY = 'youtube-kids-enhance.sections.v1';
 const CLIENT_CACHE_TTL_MS = 3 * 60 * 1000;
 const PLAYER_MODE: PlayerMode =
   process.env.NEXT_PUBLIC_YOUTUBE_PLAYER_MODE === 'plyr' ? 'plyr' : 'iframe';
+const ORDERS: SearchOrder[] = ['relevance', 'date', 'rating', 'title', 'viewCount'];
+const VIDEO_CAPTIONS: VideoCaptionFilter[] = ['any', 'closedCaption', 'none'];
+const VIDEO_DEFINITIONS: VideoDefinitionFilter[] = ['any', 'high', 'standard'];
+const VIDEO_DIMENSIONS: VideoDimensionFilter[] = ['any', '2d', '3d'];
+const VIDEO_LICENSES: VideoLicenseFilter[] = ['any', 'creativeCommon', 'youtube'];
+const VIDEO_TYPES: VideoTypeFilter[] = ['any', 'episode', 'movie'];
+const MADE_FOR_KIDS_FILTERS: MadeForKidsFilter[] = ['required', 'any'];
 const DEFAULT_SETTINGS: Settings = {
   keywords: [
     { keyword: 'nursery rhymes' },
@@ -50,7 +64,30 @@ const DEFAULT_SETTINGS: Settings = {
   minSec: undefined,
   maxSec: undefined,
   lang: '',
+  langStrict: false,
+  regionCode: 'SG',
+  maxResults: 20,
+  order: 'relevance',
+  publishedAfter: '',
+  publishedBefore: '',
+  channelId: '',
+  videoCaption: 'any',
+  videoDefinition: 'any',
+  videoDimension: 'any',
+  videoCategoryId: '',
+  videoLicense: 'any',
+  videoType: 'any',
+  topicId: '',
+  madeForKids: 'required',
 };
+
+function pickString(raw: unknown, fallback = ''): string {
+  return typeof raw === 'string' ? raw : fallback;
+}
+
+function pickEnum<T extends string>(raw: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof raw === 'string' && allowed.includes(raw as T) ? (raw as T) : fallback;
+}
 
 function parseKeywordConfig(raw: unknown): KeywordConfig | null {
   if (typeof raw === 'string') {
@@ -88,6 +125,32 @@ function loadSettings(): Settings {
       minSec: typeof s.minSec === 'number' ? s.minSec : undefined,
       maxSec: typeof s.maxSec === 'number' ? s.maxSec : undefined,
       lang: typeof s.lang === 'string' ? s.lang : '',
+      langStrict: typeof s.langStrict === 'boolean' ? s.langStrict : DEFAULT_SETTINGS.langStrict,
+      regionCode: pickString(s.regionCode, DEFAULT_SETTINGS.regionCode),
+      maxResults:
+        typeof s.maxResults === 'number' && s.maxResults >= 1 && s.maxResults <= 50
+          ? s.maxResults
+          : DEFAULT_SETTINGS.maxResults,
+      order: pickEnum(s.order, ORDERS, DEFAULT_SETTINGS.order),
+      publishedAfter: pickString(s.publishedAfter),
+      publishedBefore: pickString(s.publishedBefore),
+      channelId: pickString(s.channelId),
+      videoCaption: pickEnum(s.videoCaption, VIDEO_CAPTIONS, DEFAULT_SETTINGS.videoCaption),
+      videoDefinition: pickEnum(
+        s.videoDefinition,
+        VIDEO_DEFINITIONS,
+        DEFAULT_SETTINGS.videoDefinition
+      ),
+      videoDimension: pickEnum(
+        s.videoDimension,
+        VIDEO_DIMENSIONS,
+        DEFAULT_SETTINGS.videoDimension
+      ),
+      videoCategoryId: pickString(s.videoCategoryId),
+      videoLicense: pickEnum(s.videoLicense, VIDEO_LICENSES, DEFAULT_SETTINGS.videoLicense),
+      videoType: pickEnum(s.videoType, VIDEO_TYPES, DEFAULT_SETTINGS.videoType),
+      topicId: pickString(s.topicId),
+      madeForKids: pickEnum(s.madeForKids, MADE_FOR_KIDS_FILTERS, DEFAULT_SETTINGS.madeForKids),
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -106,6 +169,21 @@ function settingsFingerprint(s: Settings): string {
     m: s.minSec ?? '',
     M: s.maxSec ?? '',
     l: s.lang,
+    ls: s.langStrict,
+    r: s.regionCode,
+    mr: s.maxResults,
+    o: s.order,
+    pa: s.publishedAfter,
+    pb: s.publishedBefore,
+    c: s.channelId,
+    vc: s.videoCaption,
+    vd: s.videoDefinition,
+    vdim: s.videoDimension,
+    vcat: s.videoCategoryId,
+    vl: s.videoLicense,
+    vt: s.videoType,
+    topic: s.topicId,
+    kids: s.madeForKids,
   });
 }
 
@@ -188,6 +266,21 @@ export default function Home() {
           if (effMinSec !== undefined) sp.set('minSec', String(effMinSec));
           if (effMaxSec !== undefined) sp.set('maxSec', String(effMaxSec));
           if (s.lang.trim()) sp.set('lang', s.lang.trim());
+          if (s.langStrict) sp.set('langStrict', '1');
+          if (s.regionCode.trim()) sp.set('regionCode', s.regionCode.trim());
+          sp.set('maxResults', String(s.maxResults));
+          sp.set('order', s.order);
+          if (s.publishedAfter) sp.set('publishedAfter', s.publishedAfter);
+          if (s.publishedBefore) sp.set('publishedBefore', s.publishedBefore);
+          if (s.channelId.trim()) sp.set('channelId', s.channelId.trim());
+          if (s.videoCaption !== 'any') sp.set('videoCaption', s.videoCaption);
+          if (s.videoDefinition !== 'any') sp.set('videoDefinition', s.videoDefinition);
+          if (s.videoDimension !== 'any') sp.set('videoDimension', s.videoDimension);
+          if (s.videoCategoryId.trim()) sp.set('videoCategoryId', s.videoCategoryId.trim());
+          if (s.videoLicense !== 'any') sp.set('videoLicense', s.videoLicense);
+          if (s.videoType !== 'any') sp.set('videoType', s.videoType);
+          if (s.topicId.trim()) sp.set('topicId', s.topicId.trim());
+          sp.set('madeForKids', s.madeForKids);
           if (bypassCache) sp.set('nocache', '1');
 
           const res = await fetch(`/api/search?${sp.toString()}`);
