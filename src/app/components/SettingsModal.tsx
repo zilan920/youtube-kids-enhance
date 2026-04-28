@@ -273,21 +273,21 @@ export default function SettingsModal({
   }
 
   const inputCls =
-    'border border-pink-100 rounded-full px-4 py-2 text-sm outline-none focus:ring-4 focus:ring-pink-100 bg-white text-neutral-900 placeholder:text-neutral-400 dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus:ring-pink-900/40';
+    'min-h-11 border border-pink-100 rounded-full px-4 py-2 text-sm outline-none focus:ring-4 focus:ring-pink-100 bg-white text-neutral-900 placeholder:text-neutral-400 dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus:ring-pink-900/40';
   const selectCls = `${inputCls} appearance-none`;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm dark:bg-black/60"
+      className="settings-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm dark:bg-black/60"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl border border-pink-100 overflow-hidden dark:bg-neutral-900 dark:border-neutral-700">
-        <div className="px-5 py-4 border-b border-pink-100 flex items-center justify-between dark:border-neutral-700">
+      <div className="settings-panel rounded-3xl bg-white shadow-2xl border border-pink-100 overflow-hidden dark:bg-neutral-900 dark:border-neutral-700">
+        <div className="settings-header px-5 py-4 border-b border-pink-100 flex items-center justify-between bg-white/95 dark:border-neutral-700 dark:bg-neutral-900/95">
           <div className="text-lg font-semibold text-pink-900 dark:text-pink-200">设置</div>
           <button
-            className="w-8 h-8 rounded-full text-gray-500 hover:bg-gray-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+            className="touch-target inline-flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
             onClick={onClose}
             aria-label="关闭"
           >
@@ -295,7 +295,9 @@ export default function SettingsModal({
           </button>
         </div>
 
-        <div className="px-5 py-4 space-y-5 max-h-[70vh] overflow-y-auto">
+        <div className="settings-body px-5 py-4 sm:px-6">
+          <div className="settings-grid">
+            <div className="settings-column">
           <section>
             <div className="text-sm font-medium text-gray-800 dark:text-neutral-200">
               关键字 <span className="text-xs text-gray-500 dark:text-neutral-400">（最多 {maxKeywords} 个；点击标签可单独设置时长）</span>
@@ -454,7 +456,7 @@ export default function SettingsModal({
                 }}
               />
               <button
-                className="px-4 py-2 rounded-full bg-pink-100 text-pink-900 hover:bg-pink-200 disabled:opacity-50 text-sm dark:bg-pink-900/40 dark:text-pink-100 dark:hover:bg-pink-900/60"
+                className="touch-target px-4 py-2 rounded-full bg-pink-100 text-pink-900 hover:bg-pink-200 disabled:opacity-50 text-sm dark:bg-pink-900/40 dark:text-pink-100 dark:hover:bg-pink-900/60"
                 onClick={addKeyword}
                 disabled={!draft.trim() || keywords.length >= maxKeywords}
               >
@@ -540,6 +542,9 @@ export default function SettingsModal({
               默认语言必须精确匹配
             </label>
           </section>
+
+            </div>
+            <div className="settings-column">
 
           <section>
             <div className="text-sm font-medium text-gray-800 dark:text-neutral-200">搜索参数</div>
@@ -744,19 +749,22 @@ export default function SettingsModal({
               SafeSearch、只搜索视频、可嵌入和可站外播放仍保持固定开启。
             </div>
           </section>
-
-          {err ? <div className="text-sm text-red-600 dark:text-red-400">{err}</div> : null}
+            </div>
+          </div>
         </div>
 
-        <div className="px-5 py-4 border-t border-pink-100 flex items-center justify-end gap-2 dark:border-neutral-700">
+        <div className="settings-footer px-5 py-4 border-t border-pink-100 flex flex-wrap items-center justify-end gap-2 bg-white/95 dark:border-neutral-700 dark:bg-neutral-900/95 sm:px-6">
+          <div className="min-w-0 flex-1 text-sm text-red-600 dark:text-red-400">
+            {err ?? ''}
+          </div>
           <button
-            className="px-4 py-2 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 text-sm dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
+            className="touch-target px-4 py-2 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 text-sm dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
             onClick={onClose}
           >
             取消
           </button>
           <button
-            className="px-5 py-2 rounded-full bg-indigo-500 text-white hover:bg-indigo-600 text-sm dark:bg-indigo-600 dark:hover:bg-indigo-500"
+            className="touch-target px-5 py-2 rounded-full bg-indigo-500 text-white hover:bg-indigo-600 text-sm dark:bg-indigo-600 dark:hover:bg-indigo-500"
             onClick={handleSave}
           >
             保存并应用

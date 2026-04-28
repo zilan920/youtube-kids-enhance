@@ -1,11 +1,19 @@
 @import "tailwindcss";
 
 /* a tiny helper for line-clamp without extra plugin */
+.line-clamp-1,
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
   overflow: hidden;
+}
+
+.line-clamp-1 {
+  -webkit-line-clamp: 1;
+}
+
+.line-clamp-2 {
+  -webkit-line-clamp: 2;
 }
 
 /* hide horizontal scrollbar while keeping swipe */
@@ -32,13 +40,15 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --font-system-sans: Arial, Helvetica, sans-serif;
+  --font-system-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-system-sans);
+  --font-mono: var(--font-system-mono);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -51,10 +61,276 @@
 html {
   /* Let native form controls (scrollbars, date/number spinners, etc.) follow system theme */
   color-scheme: light dark;
+  min-height: 100%;
+  background: var(--background);
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overscroll-behavior-y: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+.app-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: calc(0.75rem + env(safe-area-inset-top))
+    calc(1rem + env(safe-area-inset-right))
+    calc(1rem + env(safe-area-inset-bottom))
+    calc(1rem + env(safe-area-inset-left));
+  background: linear-gradient(180deg, #fff1f7 0%, #fffbe8 52%, #effaff 100%);
+}
+
+.app-content {
+  width: min(100%, 1280px);
+  margin: 0 auto;
+}
+
+.app-header {
+  position: sticky;
+  top: max(0.5rem, env(safe-area-inset-top));
+  z-index: 30;
+  min-height: 56px;
+}
+
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.keyword-section {
+  scroll-margin-top: calc(72px + env(safe-area-inset-top));
+}
+
+.video-rail,
+.video-rail-static {
+  --video-card-width: minmax(168px, 46%);
+  --video-card-min-height: 218px;
+  --rail-message-height: 452px;
+  display: grid;
+  grid-template-rows: repeat(2, minmax(var(--video-card-min-height), auto));
+  grid-auto-flow: column;
+  grid-auto-columns: var(--video-card-width);
+  gap: 0.75rem;
+  align-items: stretch;
+  margin-top: 0.5rem;
+  padding: 0.25rem 0 0.6rem;
+}
+
+.video-rail {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: 0.25rem;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.video-rail-static {
+  overflow: hidden;
+}
+
+.video-card {
+  display: flex;
+  min-height: var(--video-card-min-height);
+  flex-direction: column;
+  scroll-snap-align: start;
+}
+
+.video-card-media {
+  aspect-ratio: 16 / 9;
+  flex: 0 0 auto;
+}
+
+.video-card-body {
+  display: flex;
+  min-height: 96px;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.rail-message {
+  min-height: var(--rail-message-height);
+}
+
+.player-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #050505;
+  padding: calc(0.75rem + env(safe-area-inset-top))
+    calc(0.75rem + env(safe-area-inset-right))
+    calc(0.75rem + env(safe-area-inset-bottom))
+    calc(0.75rem + env(safe-area-inset-left));
+}
+
+.player-exit-button {
+  position: fixed;
+  top: calc(0.75rem + env(safe-area-inset-top));
+  right: calc(0.75rem + env(safe-area-inset-right));
+  z-index: 60;
+  min-width: 64px;
+  min-height: 44px;
+}
+
+.player-stage {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  padding-top: 4rem;
+}
+
+.player-shell {
+  width: 100%;
+  max-width: 1120px;
+  max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 6rem);
+  aspect-ratio: 16 / 9;
+}
+
+.settings-backdrop {
+  padding: calc(1rem + env(safe-area-inset-top))
+    calc(1rem + env(safe-area-inset-right))
+    calc(1rem + env(safe-area-inset-bottom))
+    calc(1rem + env(safe-area-inset-left));
+}
+
+.settings-panel {
+  display: flex;
+  width: min(100%, 42rem);
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2rem);
+  flex-direction: column;
+}
+
+.settings-header,
+.settings-footer {
+  flex: 0 0 auto;
+  position: sticky;
+  z-index: 1;
+}
+
+.settings-header {
+  top: 0;
+}
+
+.settings-footer {
+  bottom: 0;
+}
+
+.settings-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.settings-grid {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.settings-column {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+@media (min-width: 700px) {
+  .app-shell {
+    padding: calc(0.9rem + env(safe-area-inset-top))
+      calc(1.25rem + env(safe-area-inset-right))
+      calc(1.25rem + env(safe-area-inset-bottom))
+      calc(1.25rem + env(safe-area-inset-left));
+  }
+
+  .video-rail,
+  .video-rail-static {
+    --video-card-width: minmax(210px, 31.2%);
+    --video-card-min-height: 246px;
+    --rail-message-height: 506px;
+    gap: 0.875rem;
+  }
+
+  .video-card-body {
+    min-height: 104px;
+  }
+
+  .settings-panel {
+    width: min(100%, 56rem);
+  }
+}
+
+@media (min-width: 900px) and (orientation: landscape) {
+  .settings-panel {
+    width: min(100%, 64rem);
+  }
+
+  .settings-grid {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    align-items: start;
+  }
+}
+
+@media (min-width: 1000px) and (orientation: landscape) {
+  .app-shell {
+    padding: calc(1rem + env(safe-area-inset-top))
+      calc(1.5rem + env(safe-area-inset-right))
+      calc(1.25rem + env(safe-area-inset-bottom))
+      calc(1.5rem + env(safe-area-inset-left));
+  }
+
+  .video-rail,
+  .video-rail-static {
+    --video-card-width: minmax(238px, 23.4%);
+    --video-card-min-height: 240px;
+    --rail-message-height: 496px;
+  }
+
+  .player-stage {
+    padding-top: 0;
+  }
+
+  .player-shell {
+    max-width: 1280px;
+    max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2rem);
+  }
+}
+
+@media (min-width: 1180px) and (orientation: landscape) {
+  .video-rail,
+  .video-rail-static {
+    --video-card-width: minmax(248px, 23.1%);
+  }
+}
+
+@media (orientation: portrait) {
+  .player-stage {
+    align-items: flex-start;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .app-shell {
+    background: linear-gradient(180deg, #160f1f 0%, #111522 52%, #0b171c 100%);
+  }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import SettingsModal, {
   describeDuration,
   type DurationPreset,
@@ -351,32 +351,6 @@ export default function Home() {
     runFetch(s);
   }, [runFetch]);
 
-  async function enterFullscreen() {
-    try {
-      const el = document.getElementById('player-shell');
-      if (el && 'requestFullscreen' in el) {
-        await (el as HTMLElement).requestFullscreen();
-      }
-      // @ts-expect-error - screen.orientation lock is not always typed
-      if (screen?.orientation?.lock) {
-        // @ts-expect-error - orientation lock requires lib.dom types
-        await screen.orientation.lock('landscape');
-      }
-    } catch {
-      // ignore (permissions / unsupported)
-    }
-  }
-
-  async function exitFullscreen() {
-    try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      const orientation = screen.orientation as unknown as { unlock?: () => void };
-      if (orientation?.unlock) orientation.unlock();
-    } catch {
-      // ignore
-    }
-  }
-
   function handleSaveSettings(next: Settings) {
     setSettings(next);
     try {
@@ -401,27 +375,26 @@ export default function Home() {
   function closePlayer() {
     setPlayerOpen(false);
     setSelectedVideo(null);
-    void exitFullscreen();
   }
 
   function playVideo(video: VideoItem) {
     setSelectedVideo({ id: video.id, title: video.title });
     setPlayerOpen(true);
-    void enterFullscreen();
   }
 
   return (
-    <main className="min-h-screen p-4 sm:p-6 max-w-6xl mx-auto bg-gradient-to-b from-pink-50 via-yellow-50 to-sky-50 text-neutral-900 dark:text-neutral-100 dark:from-[#1a1424] dark:via-[#141826] dark:to-[#0f1a1f]">
-      <h1 className="sr-only">youtube-kids-enhance</h1>
+    <main className="app-shell text-neutral-900 dark:text-neutral-100">
+      <div className="app-content">
+        <h1 className="sr-only">youtube-kids-enhance</h1>
 
-      <header className="flex items-center gap-3 rounded-3xl bg-white/70 backdrop-blur border border-pink-100 px-4 py-3 shadow-sm dark:bg-neutral-900/70 dark:border-neutral-700">
-        <div className="text-2xl">KidsTube</div>
-        <div className="text-xs text-gray-600 hidden sm:block dark:text-neutral-400">
+      <header className="app-header flex items-center gap-3 rounded-2xl bg-white/75 backdrop-blur border border-pink-100 px-3 py-2 shadow-sm dark:bg-neutral-900/75 dark:border-neutral-700 sm:px-4">
+        <div className="text-xl font-semibold sm:text-2xl">KidsTube</div>
+        <div className="text-xs text-gray-600 hidden md:block dark:text-neutral-400">
           只显示 <span className="font-semibold">Made for Kids</span> 内容
         </div>
         <div className="flex-1" />
         <button
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-full bg-sky-100 text-sky-900 hover:bg-sky-200 transition disabled:opacity-50 dark:bg-sky-900/40 dark:text-sky-100 dark:hover:bg-sky-900/60"
+          className="touch-target inline-flex items-center justify-center gap-2 rounded-full bg-sky-100 px-3 py-2 text-sky-900 transition hover:bg-sky-200 disabled:opacity-50 dark:bg-sky-900/40 dark:text-sky-100 dark:hover:bg-sky-900/60"
           onClick={handleRefresh}
           disabled={refreshing || settings.keywords.length === 0}
           title="强制刷新（绕过缓存）"
@@ -447,7 +420,7 @@ export default function Home() {
           <span className="text-sm hidden sm:inline">刷新</span>
         </button>
         <button
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-pink-100 text-pink-900 hover:bg-pink-200 transition dark:bg-pink-900/40 dark:text-pink-100 dark:hover:bg-pink-900/60"
+          className="touch-target inline-flex items-center justify-center gap-2 rounded-full bg-pink-100 px-3 py-2 text-pink-900 transition hover:bg-pink-200 dark:bg-pink-900/40 dark:text-pink-100 dark:hover:bg-pink-900/60 sm:px-4"
           onClick={() => setSettingsOpen(true)}
           title="设置"
           aria-label="打开设置"
@@ -471,33 +444,23 @@ export default function Home() {
       </header>
 
       {playerOpen && selectedVideo ? (
-        <div className="fixed inset-0 z-50 bg-gradient-to-b from-pink-100 via-yellow-50 to-sky-100 dark:from-[#1a1424] dark:via-[#141826] dark:to-[#0f1a1f]">
-          <div className="absolute inset-0 opacity-30 pointer-events-none" />
-
-          <div className="h-full w-full flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3">
-              <div className="text-sm font-semibold text-pink-900 dark:text-pink-200">正在播放</div>
-              <button
-                className="px-4 py-2 rounded-full bg-white/80 border border-pink-200 text-pink-900 shadow-sm dark:bg-neutral-800/80 dark:border-neutral-700 dark:text-pink-100"
-                onClick={closePlayer}
-              >
-                退出
-              </button>
-            </div>
-
-            <div className="flex-1 flex items-center justify-center px-3 pb-6">
-              <div
-                id="player-shell"
-                className="w-full max-w-5xl h-[80vh] sm:h-[82vh] rounded-[28px] bg-white/70 border border-pink-200 shadow-lg p-3 dark:bg-neutral-900/70 dark:border-neutral-700"
-              >
-                <VideoPlayer
-                  key={`${PLAYER_MODE}:${selectedVideo.id}`}
-                  videoId={selectedVideo.id}
-                  title={selectedVideo.title}
-                  mode={PLAYER_MODE}
-                  onClose={closePlayer}
-                />
-              </div>
+        <div className="player-overlay">
+          <button
+            className="player-exit-button touch-target rounded-full border border-white/20 bg-white/90 px-4 py-2 text-sm font-semibold text-neutral-950 shadow-sm backdrop-blur transition hover:bg-white dark:bg-neutral-900/90 dark:text-neutral-100 dark:hover:bg-neutral-800"
+            onClick={closePlayer}
+          >
+            退出
+          </button>
+          <div className="player-stage">
+            <div className="player-shell">
+              <div className="sr-only">正在播放：{selectedVideo.title}</div>
+              <VideoPlayer
+                key={`${PLAYER_MODE}:${selectedVideo.id}`}
+                videoId={selectedVideo.id}
+                title={selectedVideo.title}
+                mode={PLAYER_MODE}
+                onClose={closePlayer}
+              />
             </div>
           </div>
         </div>
@@ -538,6 +501,7 @@ export default function Home() {
           onSave={handleSaveSettings}
         />
       ) : null}
+      </div>
     </main>
   );
 }
@@ -550,7 +514,7 @@ function KeywordSection({
   onPlay: (video: VideoItem) => void;
 }) {
   return (
-    <section>
+    <section className="keyword-section">
       <div className="flex items-baseline gap-2 flex-wrap">
         <h2 className="text-base sm:text-lg font-semibold text-pink-900 dark:text-pink-200">{section.keyword}</h2>
         <span className="text-[11px] px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
@@ -564,9 +528,9 @@ function KeywordSection({
       {section.loading ? (
         <RowSkeleton />
       ) : section.error ? (
-        <div className="mt-2 text-sm text-red-600 dark:text-red-400">加载失败：{section.error}</div>
+        <RailMessage tone="error">加载失败：{section.error}</RailMessage>
       ) : section.items.length === 0 ? (
-        <div className="mt-2 text-sm text-gray-600 dark:text-neutral-400">暂无符合条件的儿童视频。</div>
+        <RailMessage>暂无符合条件的儿童视频。</RailMessage>
       ) : (
         <TwoRowScroller items={section.items} onPlay={onPlay} />
       )}
@@ -582,14 +546,14 @@ function TwoRowScroller({
   onPlay: (video: VideoItem) => void;
 }) {
   return (
-    <div className="mt-2 grid grid-rows-2 grid-flow-col auto-cols-[45%] sm:auto-cols-[30%] lg:auto-cols-[22%] gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-2">
+    <div className="video-rail no-scrollbar">
       {items.map((it) => (
         <button
           key={it.id}
-          className="snap-start text-left rounded-2xl overflow-hidden border bg-white hover:shadow-sm active:scale-[0.99] transition dark:bg-neutral-800 dark:border-neutral-700 dark:hover:shadow-[0_2px_10px_rgba(0,0,0,0.6)]"
+          className="video-card text-left rounded-2xl overflow-hidden border bg-white hover:shadow-sm active:scale-[0.99] transition dark:bg-neutral-800 dark:border-neutral-700 dark:hover:shadow-[0_2px_10px_rgba(0,0,0,0.6)]"
           onClick={() => onPlay(it)}
         >
-          <div className="aspect-video bg-gray-100 dark:bg-neutral-700">
+          <div className="video-card-media bg-gray-100 dark:bg-neutral-700">
             {it.thumbnailUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -600,22 +564,22 @@ function TwoRowScroller({
             ) : null}
           </div>
 
-          <div className="p-2.5">
+          <div className="video-card-body p-2.5 sm:p-3">
             <div className="font-semibold text-sm leading-snug line-clamp-2 text-neutral-900 dark:text-neutral-100">
               {it.title || '(no title)'}
             </div>
-            <div className="text-xs text-gray-600 mt-1 line-clamp-2 dark:text-neutral-400">
+            <div className="text-xs text-gray-500 mt-1 line-clamp-1 dark:text-neutral-500">
               {it.channelTitle || ''}
             </div>
-            <div className="mt-1.5 flex flex-wrap gap-1 text-[11px]">
+            <div className="mt-auto flex flex-wrap gap-1 pt-2 text-[11px] text-neutral-500 dark:text-neutral-400">
               {it.durationText ? (
-                <span className="px-2 py-0.5 rounded-full bg-gray-100 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-200">{it.durationText}</span>
+                <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-neutral-700/70">{it.durationText}</span>
               ) : null}
               {it.defaultLanguage ? (
-                <span className="px-2 py-0.5 rounded-full bg-gray-100 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-200">{it.defaultLanguage}</span>
+                <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-neutral-700/70">{it.defaultLanguage}</span>
               ) : null}
               {it.madeForKids ? (
-                <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300">
+                <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300">
                   Kids
                 </span>
               ) : null}
@@ -629,19 +593,40 @@ function TwoRowScroller({
 
 function RowSkeleton() {
   return (
-    <div className="mt-2 grid grid-rows-2 grid-flow-col auto-cols-[45%] sm:auto-cols-[30%] lg:auto-cols-[22%] gap-3 overflow-hidden pb-2">
+    <div className="video-rail-static">
       {Array.from({ length: 8 }).map((_, i) => (
         <div
           key={i}
-          className="rounded-2xl overflow-hidden border bg-white dark:bg-neutral-800 dark:border-neutral-700"
+          className="video-card rounded-2xl overflow-hidden border bg-white dark:bg-neutral-800 dark:border-neutral-700"
         >
-          <div className="aspect-video bg-gray-100 animate-pulse dark:bg-neutral-700" />
-          <div className="p-2.5 space-y-2">
+          <div className="video-card-media bg-gray-100 animate-pulse dark:bg-neutral-700" />
+          <div className="video-card-body p-2.5 space-y-2 sm:p-3">
             <div className="h-3 bg-gray-100 rounded animate-pulse dark:bg-neutral-700" />
             <div className="h-3 bg-gray-100 rounded w-2/3 animate-pulse dark:bg-neutral-700" />
+            <div className="mt-auto h-5 w-16 rounded-full bg-gray-100 animate-pulse dark:bg-neutral-700" />
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function RailMessage({
+  children,
+  tone = 'empty',
+}: {
+  children: ReactNode;
+  tone?: 'empty' | 'error';
+}) {
+  return (
+    <div
+      className={`rail-message mt-2 flex items-center justify-center rounded-2xl border border-dashed px-6 text-center text-sm ${
+        tone === 'error'
+          ? 'border-red-200 bg-red-50/70 text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300'
+          : 'border-pink-200 bg-white/45 text-gray-600 dark:border-neutral-700 dark:bg-neutral-900/45 dark:text-neutral-400'
+      }`}
+    >
+      {children}
     </div>
   );
 }

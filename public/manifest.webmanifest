@@ -1,0 +1,18 @@
+{
+  "name": "KidsTube",
+  "short_name": "KidsTube",
+  "description": "A simplified kids video browsing app.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#fff1f7",
+  "theme_color": "#fff1f7",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ]
+}

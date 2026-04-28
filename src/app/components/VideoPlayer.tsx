@@ -85,7 +85,7 @@ export default function VideoPlayer({
   );
 
   return (
-    <div className="youtube-player-frame relative w-full h-full rounded-[20px] overflow-hidden bg-black">
+    <div className="youtube-player-frame relative h-full w-full overflow-hidden rounded-[14px] bg-black">
       {mode === 'plyr' ? (
         <PlyrYouTubePlayer videoId={videoId} title={title} onIssue={handleIssue} />
       ) : (
